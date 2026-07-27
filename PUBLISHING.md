@@ -51,7 +51,7 @@ Source code, README, existing tests, and all files not listed above.
 | Test | Result |
 |------|--------|
 | Local build (gpg.skip=true) | PASS - BUILD SUCCESS, all 3 jars produced (javadoc had 1 error / 100 warnings from source doc comments, suppressed via failOnError=false - see C7-adjacent finding below) |
-| Ubuntu dry-run (workflow_dispatch) | PENDING - Step A14 |
+| Ubuntu dry-run (workflow_dispatch) | PASS - run 30262232493, DEPLOY SKIPPED, coordinates OK |
 | Artifact on Maven Central (HTTP 200) | PENDING - Step A16 |
 | JAR smoke compile | PENDING - Step B2 |
 | C7 findings (missing classes) | PENDING - Step B3 |

@@ -37,3 +37,8 @@ Thumbs.db
 # Logs
 *.log
 hs_err_pid*
+
+# Maven Central publishing (S-110)
+*.asc
+.secrets
+.env.act

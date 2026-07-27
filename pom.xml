@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.aspose.slides.foss</groupId>
+    <groupId>org.aspose</groupId>
     <artifactId>aspose-slides-foss</artifactId>
-    <version>1.0.0</version>
+    <version>26.7.0</version>
     <packaging>jar</packaging>
 
     <name>Aspose.Slides FOSS</name>
@@ -23,9 +23,9 @@
 
     <developers>
         <developer>
-            <name>Aspose Slides Team</name>
+            <name>Aspose</name>
             <organization>Aspose Pty Ltd</organization>
-            <organizationUrl>https://www.aspose.org</organizationUrl>
+            <organizationUrl>https://www.aspose.com/</organizationUrl>
         </developer>
     </developers>
 
@@ -98,6 +98,59 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals><goal>jar-no-fork</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.12.0</version>
+                <configuration>
+                    <failOnError>false</failOnError>
+                    <outputDirectory>${project.build.directory}/apidocs</outputDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals><goal>jar</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.2.8</version>
+                <configuration>
+                    <keyname>E176D5CBCA1DCC62</keyname>
+                    <passphraseEnvName>GPG_PASSPHRASE</passphraseEnvName>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals><goal>sign</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.11.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                    <waitUntil>validated</waitUntil>
+                </configuration>
             </plugin>
         </plugins>
     </build>

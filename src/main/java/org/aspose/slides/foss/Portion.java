@@ -1,5 +1,6 @@
 package org.aspose.slides.foss;
 
+import org.aspose.slides.foss.internal.pptx.SchemaOrder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -81,7 +82,7 @@ public final class Portion implements IPortion {
         if (el == null) {
             Document doc = runElement.getOwnerDocument();
             el = doc.createElementNS(NS_A, "a:" + localName);
-            runElement.appendChild(el);
+            SchemaOrder.insert(runElement, el);
         }
         return el;
     }

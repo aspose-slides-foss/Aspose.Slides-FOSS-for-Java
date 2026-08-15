@@ -97,22 +97,31 @@ public final class Picture implements ISlidesPicture, ISlideComponent, IPresenta
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws IllegalArgumentException if {@code value} is {@code null}
+     * @throws IllegalStateException    if this picture is not bound to a package part, so that
+     *                                  no relationship can be declared for the image
+     */
     @Override
     public void setImage(IPPImage value) {
         if (value == null) {
             throw new IllegalArgumentException("Image must not be null");
         }
+        if (opcPackage == null || slidePartName == null) {
+            // An r:embed names a relationship in the owning part's .rels. With no part
+            // there is none to declare, and the two things that could be done instead are
+            // both worse than refusing: an invented id resolves to nothing, and accepting
+            // the image silently discards it -- and removes whatever reference was there.
+            throw new IllegalStateException(
+                    "This picture is not attached to a package part, so an image set on it "
+                            + "could not be given a relationship to refer to. Set the image "
+                            + "through a shape, a fill or a bullet that belongs to a slide, "
+                            + "layout or master.");
+        }
         this.cachedImage = value;
-        if (opcPackage != null && slidePartName != null) {
-            setBlipImage(blip, opcPackage, slidePartName, value);
-            return;
-        }
-        // No part to declare a relationship in. Writing an r:embed here would name an id
-        // that nothing resolves, which is worse than writing none: the image is held in
-        // memory and the blip stays empty until this picture is bound to a part.
-        if (blip.hasAttributeNS(NS_R, "embed")) {
-            blip.removeAttributeNS(NS_R, "embed");
-        }
+        setBlipImage(blip, opcPackage, slidePartName, value);
     }
 
     @Override

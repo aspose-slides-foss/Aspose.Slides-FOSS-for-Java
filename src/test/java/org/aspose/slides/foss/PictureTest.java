@@ -60,26 +60,31 @@ class PictureTest {
     }
 
     /**
-     * A picture that is not bound to a package part keeps the image but writes no
-     * {@code r:embed}.
+     * A picture that is not bound to a package part refuses the image rather than
+     * discarding it.
      *
      * <p>An {@code r:embed} names a relationship in the owning part's {@code .rels}. With no
      * part there is no such relationship, and inventing an id produces a reference that
-     * resolves to nothing — a picture that readers show as an empty box. The relationship is
-     * written when the picture belongs to a part; that path is asserted against the produced
-     * package in the conformance tests.</p>
+     * resolves to nothing — a picture readers show as an empty box. Accepting the image and
+     * writing nothing is worse still: the call returns, the image is not in the file, and any
+     * reference the blip already carried is gone with it. The caller is told instead. The
+     * bound path, where the relationship is written, is asserted against the produced package
+     * in the conformance tests.</p>
      */
     @Test
-    void setImage_withoutAPartKeepsTheImageAndInventsNoRelationship() {
+    void setImage_withoutAPartRefusesRatherThanDiscardingTheImage() {
         Element blip = createBlip();
+        blip.setAttributeNS(NS_R, "r:embed", "rId7");
         var picture = new Picture();
         picture.initInternal(blip, null);
 
-        var stubImage = new StubPPImage();
-        picture.setImage(stubImage);
+        assertThatThrownBy(() -> picture.setImage(new StubPPImage()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not attached to a package part");
 
-        assertThat(picture.getImage()).isSameAs(stubImage);
-        assertThat(blip.hasAttributeNS(NS_R, "embed")).isFalse();
+        assertThat(blip.getAttributeNS(NS_R, "embed"))
+                .as("a reference the blip already carried must survive a refused call")
+                .isEqualTo("rId7");
     }
 
     @Test
@@ -162,9 +167,12 @@ class PictureTest {
         IPictureFillFormat pff = ff.getPictureFillFormat();
         assertThat(pff.getPictureFillMode()).isEqualTo(PictureFillMode.STRETCH);
 
-        // Set the picture's image
+        // Set the picture's image. This fill belongs to no package part, so there is no
+        // .rels for the relationship to go in and the call says so rather than accepting
+        // an image it cannot write.
         ISlidesPicture picture = pff.getPicture();
-        picture.setImage(new StubPPImage());
+        assertThatThrownBy(() -> picture.setImage(new StubPPImage()))
+                .isInstanceOf(IllegalStateException.class);
 
         // Re-read from same XML (simulates save/reload)
         var ff2 = new FillFormat(spPr, null);

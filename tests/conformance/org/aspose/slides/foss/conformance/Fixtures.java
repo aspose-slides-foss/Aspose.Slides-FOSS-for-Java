@@ -30,6 +30,20 @@ public final class Fixtures {
     }
 
     /**
+     * Resolves a file in {@code tests/test_data}.
+     *
+     * <p>Anchored on the {@code basedir} property the build sets rather than on the working
+     * directory, so that a test finds its fixture whatever launched it.</p>
+     *
+     * @param fileName the file name within {@code tests/test_data}
+     * @return the path to it
+     */
+    public static Path testData(String fileName) {
+        return Path.of(System.getProperty("basedir", "."))
+                .resolve(Path.of("tests", "test_data", fileName));
+    }
+
+    /**
      * Writes a multi-slide deck with a real master, eleven layouts and a title on every slide.
      *
      * @param directory where to write it

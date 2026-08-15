@@ -68,6 +68,7 @@ public final class BulletFormat extends PVIObject implements IBulletFormat {
 
     private Element pprElement;
     private Runnable saveCallback;
+    private PartContext partContext;
 
     /**
      * Creates an unbound {@code BulletFormat}. Call {@link #initInternal} to bind
@@ -89,6 +90,18 @@ public final class BulletFormat extends PVIObject implements IBulletFormat {
         this.pprElement = pprElement;
         this.saveCallback = saveCallback;
         this.parentSlide = parentSlide;
+        return this;
+    }
+
+    /**
+     * Tells this bullet format which package part the paragraph is serialized into, so that
+     * a picture bullet can declare its image relationship in the right {@code .rels}.
+     *
+     * @param partContext the part context, or {@code null} if it is not known
+     * @return this instance, for fluent chaining
+     */
+    BulletFormat withPartContext(PartContext partContext) {
+        this.partContext = partContext;
         return this;
     }
 
@@ -343,7 +356,13 @@ public final class BulletFormat extends PVIObject implements IBulletFormat {
             buBlip.appendChild(blip);
         }
         var pic = new Picture();
-        pic.initInternal(blip, null);
+        if (partContext != null && partContext.isBound()) {
+            pic.initInternal(blip, partContext.pkg(), partContext.partName(), parentSlide);
+        } else {
+            // No part is known, so setting an image on this picture will refuse rather
+            // than write a reference nothing can resolve.
+            pic.initInternal(blip, parentSlide);
+        }
         return pic;
     }
 

@@ -88,6 +88,25 @@ public final class TextFrame implements ITextFrame {
      */
     void setParentShape(IShape parentShape) {
         this.parentShape = parentShape;
+        // The paragraphs were attached before the shape was known; tell them which part
+        // they are written to, so that a picture bullet can declare its relationship.
+        if (paragraphs != null) {
+            paragraphs.setPartContext(partContext());
+        }
+    }
+
+    /**
+     * @return the part this text frame is serialized into, or {@code null} if it is not
+     *         yet attached to one
+     */
+    private PartContext partContext() {
+        if (parentShape instanceof GeometryShape shape) {
+            ShapeCollection shapes = shape.owningShapes();
+            if (shapes != null) {
+                return new PartContext(shapes.getPartPackage(), shapes.getPartName());
+            }
+        }
+        return null;
     }
 
     /**
@@ -105,7 +124,7 @@ public final class TextFrame implements ITextFrame {
         // Attach the collection to the text body so that adding, inserting or
         // removing a paragraph changes the <a:p> children that are written to
         // the file, rather than a private list nothing serialises.
-        paragraphs.initInternal(txBodyElement, null, parentSlide, this::save);
+        paragraphs.initInternal(txBodyElement, partContext(), parentSlide, this::save);
     }
 
     private void save() {

@@ -27,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class EmbeddedImageConformanceTest {
 
-    private static final Path PNG = Path.of("tests", "test_data", "lotus.png");
-    private static final Path JPEG = Path.of("tests", "test_data", "image_example.jpg");
+    private static final Path PNG = Fixtures.testData("lotus.png");
+    private static final Path JPEG = Fixtures.testData("image_example.jpg");
 
     @TempDir
     Path tempDir;

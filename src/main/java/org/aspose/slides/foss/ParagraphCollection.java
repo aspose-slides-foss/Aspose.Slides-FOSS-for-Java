@@ -89,6 +89,19 @@ public final class ParagraphCollection extends BaseCollection<IParagraph>
         return this;
     }
 
+    /**
+     * Tells the paragraphs which package part they are serialized into.
+     *
+     * <p>Set separately from {@link #initInternal} because a text frame is often attached to
+     * its element before it is attached to its shape, and the part is only known through the
+     * shape.</p>
+     *
+     * @param slidePart the part context, or {@code null} if it is not known
+     */
+    void setPartContext(Object slidePart) {
+        this.slidePart = slidePart;
+    }
+
     private void save() {
         if (saveCallback != null) saveCallback.run();
     }

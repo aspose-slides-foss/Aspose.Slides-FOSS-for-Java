@@ -122,6 +122,9 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
         if (paragraphFormat == null) {
             paragraphFormat = new ParagraphFormat(pElement, this::save);
         }
+        // Passed on every call, not only on creation: the paragraph learns which part it
+        // belongs to when its text frame is attached to a shape, which can be later.
+        paragraphFormat.setPartContext(slidePart instanceof PartContext ctx ? ctx : null);
         return paragraphFormat;
     }
 

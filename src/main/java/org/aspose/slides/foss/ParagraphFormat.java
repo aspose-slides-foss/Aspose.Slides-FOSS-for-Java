@@ -90,6 +90,8 @@ public final class ParagraphFormat extends PVIObject implements IParagraphFormat
     private Runnable saveCallback;
     // Direct pPr reference when initialized via initInternal (bypasses pElement)
     private Element directPPr;
+    // The part this paragraph is serialized into, for a bullet that embeds an image.
+    private PartContext partContext;
 
     /**
      * Creates a ParagraphFormat backed by the given paragraph element.
@@ -365,10 +367,21 @@ public final class ParagraphFormat extends PVIObject implements IParagraphFormat
 
     // --- IParagraphFormat implementation ---
 
+    /**
+     * Tells this format which package part the paragraph is serialized into.
+     *
+     * @param partContext the part context, or {@code null} if it is not known
+     */
+    void setPartContext(PartContext partContext) {
+        this.partContext = partContext;
+    }
+
     @Override
     public IBulletFormat getBullet() {
         Element pPr = ensurePPr();
-        return new BulletFormat().initInternal(pPr, this::save, this.parentSlide);
+        return new BulletFormat()
+                .initInternal(pPr, this::save, this.parentSlide)
+                .withPartContext(partContext);
     }
 
     @Override

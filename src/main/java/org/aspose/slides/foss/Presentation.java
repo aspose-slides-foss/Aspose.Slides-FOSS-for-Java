@@ -15,6 +15,7 @@ import org.aspose.slides.foss.internal.pptx.LayoutSlidePart;
 import org.aspose.slides.foss.internal.pptx.MasterSlidePart;
 import org.aspose.slides.foss.internal.pptx.PresentationPart;
 import org.aspose.slides.foss.internal.pptx.RelsHelper;
+import org.aspose.slides.foss.internal.pptx.ThreadedCommentsPart;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -389,10 +390,11 @@ public final class Presentation implements IPresentation {
     private void loadComments() {
         for (int slideIdx = 0; slideIdx < slides.size(); slideIdx++) {
             Slide slide = slides.getInternalList().get(slideIdx);
-            String partUri = "ppt/comments/comment"
-                    + slideFileNumberOf(slide.getSlidePartUri(), slideIdx + 1) + ".xml";
+            int slideNumber = slideFileNumberOf(slide.getSlidePartUri(), slideIdx + 1);
+            String partUri = "ppt/comments/comment" + slideNumber + ".xml";
             Document doc = pkg.parseXml(partUri);
             if (doc == null) continue;
+            var slideComments = new ArrayList<Comment>();
             NodeList cmNodes = doc.getElementsByTagNameNS(NS_P, "cm");
             for (int i = 0; i < cmNodes.getLength(); i++) {
                 Element cmEl = (Element) cmNodes.item(i);
@@ -419,8 +421,33 @@ public final class Presentation implements IPresentation {
                 // Find the author
                 CommentAuthor author = findAuthorById(authorId);
                 if (author != null) {
-                    author.getCommentCollection().addComment(text, slide, new PointF(x, y), dt);
+                    slideComments.add((Comment) author.getCommentCollection()
+                            .addComment(text, slide, new PointF(x, y), dt));
                 }
+            }
+            restoreCommentThreads(slideNumber, slideComments);
+        }
+    }
+
+    /**
+     * Restores the reply relationships recorded in a slide's threaded-comment part.
+     *
+     * <p>The classic {@code <p:cm>} carries no parent, so without this a deck
+     * saved with threads reads back as unrelated comments — the same loss the
+     * save path used to have.</p>
+     *
+     * @param slideNumber   the slide part number
+     * @param slideComments the slide's comments, in the order the classic part lists them
+     */
+    private void restoreCommentThreads(int slideNumber, List<Comment> slideComments) {
+        List<Integer> parents = ThreadedCommentsPart.readParentIndices(pkg, slideNumber);
+        if (parents.size() != slideComments.size()) {
+            return;
+        }
+        for (int i = 0; i < parents.size(); i++) {
+            int parentIndex = parents.get(i);
+            if (parentIndex >= 0 && parentIndex < slideComments.size() && parentIndex != i) {
+                slideComments.get(i).setParentComment(slideComments.get(parentIndex));
             }
         }
     }
@@ -661,6 +688,7 @@ public final class Presentation implements IPresentation {
             if (slideComments.isEmpty()) {
                 // The relationship and the content-type Override go with the part.
                 pkg.removePartCascading(partUri, slidePartUri);
+                ThreadedCommentsPart.delete(pkg, slidePartUri, slideNumber);
                 continue;
             }
             Document doc = OpcPackage.newDocument();
@@ -694,7 +722,58 @@ public final class Presentation implements IPresentation {
 
             // Add slide relationship to comments
             addSlideCommentRelationship(slideNumber);
+
+            // A reply has nowhere to live on the classic <p:cm>, so the threads
+            // are written to the modern part beside it.
+            saveThreadedComments(slidePartUri, slideNumber, slideComments);
         }
+        saveCommentAuthorsForThreads();
+    }
+
+    /**
+     * Writes the modern threaded-comment part for one slide.
+     *
+     * <p>{@code CT_Comment} has no attribute for a parent comment, so a reply
+     * recorded only on {@code <p:cm>} is lost on save — which is what used to
+     * happen: {@code setParentComment} assigned a field and reached no part of
+     * the package, and a reviewer's discussion opened as unrelated comments.</p>
+     *
+     * @param slidePartUri  the part name of the slide
+     * @param slideNumber   the slide part number
+     * @param slideComments the slide's comments, in the order the classic part
+     *                      writes them
+     */
+    private void saveThreadedComments(String slidePartUri, int slideNumber,
+                                      List<Comment> slideComments) {
+        var entries = new ArrayList<ThreadedCommentsPart.Entry>(slideComments.size());
+        for (Comment comment : slideComments) {
+            var author = (CommentAuthor) comment.getAuthor();
+            int parentIndex = comment.getParentComment()
+                    .map(parent -> slideComments.indexOf((Comment) parent))
+                    .orElse(-1);
+            entries.add(new ThreadedCommentsPart.Entry(
+                    ThreadedCommentsPart.authorGuid(author.getName(), author.getInitials()),
+                    comment.getCreatedTime(),
+                    comment.getText(),
+                    Math.round(comment.getPosition().getX() * CM_TO_EMU),
+                    Math.round(comment.getPosition().getY() * CM_TO_EMU),
+                    parentIndex));
+        }
+        ThreadedCommentsPart.write(pkg, slidePartUri, slideNumber, entries);
+    }
+
+    /** Writes {@code ppt/authors.xml}, which the threaded-comment parts refer to. */
+    private void saveCommentAuthorsForThreads() {
+        boolean anyThreadedPart = pkg.getPartNames().stream()
+                .anyMatch(name -> name.startsWith("ppt/threadedComments/"));
+        if (!anyThreadedPart) {
+            return;
+        }
+        var authors = new ArrayList<String[]>();
+        for (CommentAuthor author : commentAuthors.getInternalList()) {
+            authors.add(new String[]{author.getName(), author.getInitials()});
+        }
+        ThreadedCommentsPart.writeAuthors(pkg, authors);
     }
 
     /**

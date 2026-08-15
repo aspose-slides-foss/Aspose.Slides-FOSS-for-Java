@@ -1,5 +1,6 @@
 package org.aspose.slides.foss;
 
+import org.aspose.slides.foss.internal.pptx.SchemaOrder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -15,6 +16,12 @@ public final class LightRig extends PVIObject implements ILightRig {
 
     private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static final double ROTATION_UNIT = 60000.0;
+
+    /** The rig written when a light rig is created or its type is cleared; {@code @rig} is required. */
+    private static final String DEFAULT_RIG = "threePt";
+
+    /** The direction written when a light rig is created or cleared; {@code @dir} is required. */
+    private static final String DEFAULT_DIRECTION = "t";
 
     private static final Map<String, String> LIGHT_TYPE_MAP = Map.ofEntries(
             Map.entry("balanced", "BALANCED"),
@@ -137,13 +144,33 @@ public final class LightRig extends PVIObject implements ILightRig {
      * @return the light rig element, never {@code null}
      */
     Element ensureLightRig() {
-        Element lr = getLightRig();
-        if (lr != null) return lr;
+        return ensureLightRigElement(scene3d);
+    }
+
+    /**
+     * Returns the {@code <a:lightRig>} child of the given {@code <a:scene3d>},
+     * creating it in schema position with schema defaults if absent.
+     *
+     * <p>{@code CT_LightRig} requires both {@code @rig} and {@code @dir}, so the
+     * element is never written without them.</p>
+     *
+     * @param scene3d the {@code <a:scene3d>} element
+     * @return the light rig element, never {@code null}
+     */
+    static Element ensureLightRigElement(Element scene3d) {
+        NodeList children = scene3d.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (children.item(i) instanceof Element el
+                    && NS_A.equals(el.getNamespaceURI())
+                    && "lightRig".equals(el.getLocalName())) {
+                return el;
+            }
+        }
         Document doc = scene3d.getOwnerDocument();
-        lr = doc.createElementNS(NS_A, "a:lightRig");
-        lr.setAttribute("rig", "threePt");
-        lr.setAttribute("dir", "t");
-        scene3d.appendChild(lr);
+        Element lr = doc.createElementNS(NS_A, "a:lightRig");
+        lr.setAttribute("rig", DEFAULT_RIG);
+        lr.setAttribute("dir", DEFAULT_DIRECTION);
+        SchemaOrder.insert(scene3d, lr);
         return lr;
     }
 
@@ -162,7 +189,9 @@ public final class LightRig extends PVIObject implements ILightRig {
     public void setLightType(LightRigPresetType value) {
         Element lr = ensureLightRig();
         if (value == LightRigPresetType.NOT_DEFINED) {
-            lr.removeAttribute("rig");
+            // @rig is required on CT_LightRig: clearing the type restores the
+            // schema default rather than dropping the attribute.
+            lr.setAttribute("rig", DEFAULT_RIG);
         } else {
             String ooxmlVal = LIGHT_TYPE_MAP_REV.get(value.name());
             if (ooxmlVal != null) lr.setAttribute("rig", ooxmlVal);
@@ -185,7 +214,8 @@ public final class LightRig extends PVIObject implements ILightRig {
     public void setDirection(LightingDirection value) {
         Element lr = ensureLightRig();
         if (value == LightingDirection.NOT_DEFINED) {
-            lr.removeAttribute("dir");
+            // @dir is required on CT_LightRig, as @rig is.
+            lr.setAttribute("dir", DEFAULT_DIRECTION);
         } else {
             String ooxmlVal = DIRECTION_MAP_REV.get(value.name());
             if (ooxmlVal != null) lr.setAttribute("dir", ooxmlVal);

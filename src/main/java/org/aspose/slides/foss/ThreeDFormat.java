@@ -1,5 +1,6 @@
 package org.aspose.slides.foss;
 
+import org.aspose.slides.foss.internal.pptx.SchemaOrder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -106,7 +107,7 @@ public final class ThreeDFormat extends PVIObject implements IThreeDFormat, IThr
         if (el != null) return el;
         Document doc = parent.getOwnerDocument();
         el = doc.createElementNS(NS_A, "a:" + localName);
-        parent.appendChild(el);
+        SchemaOrder.insert(parent, el);
         return el;
     }
 
@@ -140,10 +141,21 @@ public final class ThreeDFormat extends PVIObject implements IThreeDFormat, IThr
     /**
      * Returns the {@code <a:scene3d>} child element, creating it if absent.
      *
+     * <p>{@code CT_Scene3D} is {@code camera, lightRig, backdrop?, extLst?} — both
+     * of the first two are required, so a scene created because the caller asked
+     * for one of them is populated with schema defaults for the other. A scene
+     * carrying only the property that was set is not a partial scene; it is
+     * invalid content, and a validating reader rejects the whole package.</p>
+     *
      * @return the scene3d element (never {@code null})
      */
     Element ensureScene3d() {
-        return ensureChild(parentElement, "scene3d");
+        Element existing = getScene3d();
+        if (existing != null) return existing;
+        Element scene3d = ensureChild(parentElement, "scene3d");
+        Camera.ensureCameraElement(scene3d);
+        LightRig.ensureLightRigElement(scene3d);
+        return scene3d;
     }
 
     private double getEmuAttr(Element el, String attr) {

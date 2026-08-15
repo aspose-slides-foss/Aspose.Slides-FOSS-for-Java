@@ -1,5 +1,6 @@
 package org.aspose.slides.foss;
 
+import org.aspose.slides.foss.internal.pptx.SchemaOrder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -119,7 +120,7 @@ public final class ShapeBevel extends PVIObject implements IShapeBevel {
         if (el != null) return el;
         Document doc = sp3d.getOwnerDocument();
         el = doc.createElementNS(NS_A, "a:" + bevelElementName());
-        sp3d.appendChild(el);
+        SchemaOrder.insert(sp3d, el);
         return el;
     }
 

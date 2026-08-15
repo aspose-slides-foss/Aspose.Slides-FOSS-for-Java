@@ -357,10 +357,11 @@ public final class Presentation implements IPresentation {
 
     private void loadComments() {
         for (int slideIdx = 0; slideIdx < slides.size(); slideIdx++) {
-            String partUri = "ppt/comments/comment" + (slideIdx + 1) + ".xml";
+            Slide slide = slides.getInternalList().get(slideIdx);
+            String partUri = "ppt/comments/comment"
+                    + slideFileNumberOf(slide.getSlidePartUri(), slideIdx + 1) + ".xml";
             Document doc = pkg.parseXml(partUri);
             if (doc == null) continue;
-            Slide slide = slides.getInternalList().get(slideIdx);
             NodeList cmNodes = doc.getElementsByTagNameNS(NS_P, "cm");
             for (int i = 0; i < cmNodes.getLength(); i++) {
                 Element cmEl = (Element) cmNodes.item(i);
@@ -617,9 +618,14 @@ public final class Presentation implements IPresentation {
                     }
                 }
             }
-            String partUri = "ppt/comments/comment" + (slideIdx + 1) + ".xml";
+            // Name the comments part after the slide part that owns it, not after the
+            // slide's position: the two differ once slides have been added or removed.
+            String slidePartUri = slide.getSlidePartUri();
+            int slideNumber = slideFileNumberOf(slidePartUri, slideIdx + 1);
+            String partUri = "ppt/comments/comment" + slideNumber + ".xml";
             if (slideComments.isEmpty()) {
-                pkg.removePart(partUri);
+                // The relationship and the content-type Override go with the part.
+                pkg.removePartCascading(partUri, slidePartUri);
                 continue;
             }
             Document doc = OpcPackage.newDocument();
@@ -652,8 +658,24 @@ public final class Presentation implements IPresentation {
             ctm.save();
 
             // Add slide relationship to comments
-            addSlideCommentRelationship(slideIdx + 1);
+            addSlideCommentRelationship(slideNumber);
         }
+    }
+
+    /**
+     * Extracts the {@code N} of {@code ppt/slides/slideN.xml}.
+     *
+     * @param slidePartUri the slide's part name, which may be {@code null}
+     * @param fallback     the number to use when the part name does not carry one
+     * @return the slide part number
+     */
+    private static int slideFileNumberOf(String slidePartUri, int fallback) {
+        if (slidePartUri == null) {
+            return fallback;
+        }
+        var matcher = java.util.regex.Pattern
+                .compile("ppt/slides/slide(\\d+)\\.xml").matcher(slidePartUri);
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : fallback;
     }
 
     private void addPresentationRelationship(String idSuffix, String type, String target) {

@@ -145,8 +145,10 @@ public final class NotesSlideManager implements INotesSlideManager {
         if (notesSlide == null) {
             return;
         }
-        String notesUri = getNotesPartUri();
-        pkg.removePart(notesUri);
+        // Removing only the bytes would leave the slide's notesSlide relationship and the
+        // content-type Override pointing at a part that is no longer there, which strict
+        // readers and PowerPoint reject.
+        pkg.removePartCascading(getNotesPartUri(), slide.getSlidePartUri());
         notesSlide = null;
     }
 

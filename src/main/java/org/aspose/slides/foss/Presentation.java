@@ -867,7 +867,14 @@ public final class Presentation implements IPresentation {
 
     @Override
     public void save(String path, int[] slides, SaveFormat format, ISaveOptions options) throws IOException {
-        save(path, format, options);
+        Objects.requireNonNull(path, "path");
+        if (slides == null) {
+            save(path, format, options);
+            return;
+        }
+        try (Presentation subset = subsetOf(slides)) {
+            subset.save(path, format, options);
+        }
     }
 
     @Override
@@ -877,7 +884,63 @@ public final class Presentation implements IPresentation {
 
     @Override
     public void save(OutputStream stream, int[] slides, SaveFormat format, ISaveOptions options) throws IOException {
-        save(stream, format, options);
+        Objects.requireNonNull(stream, "stream");
+        if (slides == null) {
+            save(stream, format, options);
+            return;
+        }
+        try (Presentation subset = subsetOf(slides)) {
+            subset.save(stream, format, options);
+        }
+    }
+
+    /**
+     * Returns a presentation holding only the requested slides, in document order.
+     *
+     * <p>The subset overloads used to discard this argument and write the whole
+     * deck, reporting success — a caller who asked for one slide got all of them
+     * with no signal that anything had happened.</p>
+     *
+     * <p>Indices are positions in {@link #getSlides()}, zero-based. Repeats are
+     * ignored; the slides that are kept stay in the order the document has them,
+     * not the order they were named in.</p>
+     *
+     * @param slideIndices the positions of the slides to keep
+     * @return a new presentation containing only those slides; the caller closes it
+     * @throws IndexOutOfBoundsException if an index is not a slide of this presentation
+     * @throws IllegalArgumentException  if no slides are requested
+     * @throws IOException               if the intermediate package cannot be written or read
+     */
+    private Presentation subsetOf(int[] slideIndices) throws IOException {
+        int total = slides.size();
+        if (slideIndices.length == 0) {
+            throw new IllegalArgumentException(
+                    "No slides were requested; a subset save must name at least one slide");
+        }
+        var keep = new java.util.LinkedHashSet<Integer>();
+        for (int index : slideIndices) {
+            if (index < 0 || index >= total) {
+                throw new IndexOutOfBoundsException("Slide index " + index
+                        + " is out of range; this presentation has " + total + " slides");
+            }
+            keep.add(index);
+        }
+
+        flushToPackage();
+        var buffer = new java.io.ByteArrayOutputStream();
+        pkg.save(buffer);
+        var subset = new Presentation(new java.io.ByteArrayInputStream(buffer.toByteArray()));
+        try {
+            for (int index = total - 1; index >= 0; index--) {
+                if (!keep.contains(index)) {
+                    subset.getSlides().removeAt(index);
+                }
+            }
+        } catch (RuntimeException e) {
+            subset.close();
+            throw e;
+        }
+        return subset;
     }
 
     @Override

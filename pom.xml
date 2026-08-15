@@ -71,6 +71,17 @@
             <version>3.27.3</version>
             <scope>test</scope>
         </dependency>
+        <!--
+            Apache POI is used by the conformance tests only, as an independent reader of the
+            .pptx files this library produces. It is never used by main sources and is not a
+            runtime dependency of the published artifact. See tests/conformance/README.md.
+        -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.4.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -81,7 +92,7 @@
                 <version>3.6.0</version>
                 <executions>
                     <execution>
-                        <id>add-integration-test-source</id>
+                        <id>add-extra-test-sources</id>
                         <phase>generate-test-sources</phase>
                         <goals>
                             <goal>add-test-source</goal>
@@ -89,6 +100,7 @@
                         <configuration>
                             <sources>
                                 <source>${project.basedir}/tests/integration</source>
+                                <source>${project.basedir}/tests/conformance</source>
                             </sources>
                         </configuration>
                     </execution>

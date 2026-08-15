@@ -4,6 +4,8 @@ import org.aspose.slides.foss.drawing.PointF;
 import org.aspose.slides.foss.drawing.SizeF;
 import org.aspose.slides.foss.export.ISaveOptions;
 import org.aspose.slides.foss.export.SaveFormat;
+import org.aspose.slides.foss.internal.export.ExporterBase;
+import org.aspose.slides.foss.internal.export.ExporterRegistry;
 import org.aspose.slides.foss.internal.pptx.OpcPackage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -523,6 +525,17 @@ public final class Presentation implements IPresentation {
     @Override
     public void save(OutputStream stream) throws IOException {
         Objects.requireNonNull(stream, "stream");
+        flushToPackage();
+        pkg.save(stream);
+    }
+
+    /**
+     * Writes every pending in-memory change into the OPC package.
+     *
+     * <p>Called before each save so that the package is complete whichever exporter
+     * then serializes it.</p>
+     */
+    private void flushToPackage() {
         for (Slide slide : slides.getInternalList()) {
             slide.flush();
         }
@@ -530,7 +543,23 @@ public final class Presentation implements IPresentation {
         saveComments();
         documentProperties.save();
         saveFirstSlideNumber();
-        pkg.save(stream);
+    }
+
+    /**
+     * Returns the exporter for a save format, or fails if there is none.
+     *
+     * <p>A format with no exporter is not written under another format's bytes: the caller
+     * is told, before anything is created, that the conversion did not happen.</p>
+     *
+     * @param format the requested save format
+     * @return the exporter for that format
+     * @throws UnsupportedOperationException if no exporter can write the format
+     */
+    private static ExporterBase exporterFor(SaveFormat format) {
+        Objects.requireNonNull(format, "format");
+        return ExporterRegistry.getExporter(format.getValue())
+                .orElseThrow(() -> new UnsupportedOperationException(
+                        "Export format '" + format.getValue() + "' is not supported"));
     }
 
     private void saveFirstSlideNumber() {
@@ -746,42 +775,48 @@ public final class Presentation implements IPresentation {
 
     @Override
     public void save(String path, SaveFormat format) throws IOException {
-        save(path);
+        save(path, format, null);
     }
 
     @Override
     public void save(OutputStream stream, SaveFormat format) throws IOException {
-        save(stream);
+        save(stream, format, null);
     }
 
     @Override
     public void save(String path, SaveFormat format, ISaveOptions options) throws IOException {
-        save(path);
+        Objects.requireNonNull(path, "path");
+        ExporterBase exporter = exporterFor(format);
+        flushToPackage();
+        exporter.exportToPath(pkg, path, options);
     }
 
     @Override
     public void save(OutputStream stream, SaveFormat format, ISaveOptions options) throws IOException {
-        save(stream);
+        Objects.requireNonNull(stream, "stream");
+        ExporterBase exporter = exporterFor(format);
+        flushToPackage();
+        exporter.exportToStream(pkg, stream, options);
     }
 
     @Override
     public void save(String path, int[] slides, SaveFormat format) throws IOException {
-        save(path);
+        save(path, slides, format, null);
     }
 
     @Override
     public void save(String path, int[] slides, SaveFormat format, ISaveOptions options) throws IOException {
-        save(path);
+        save(path, format, options);
     }
 
     @Override
     public void save(OutputStream stream, int[] slides, SaveFormat format) throws IOException {
-        save(stream);
+        save(stream, slides, format, null);
     }
 
     @Override
     public void save(OutputStream stream, int[] slides, SaveFormat format, ISaveOptions options) throws IOException {
-        save(stream);
+        save(stream, format, options);
     }
 
     @Override

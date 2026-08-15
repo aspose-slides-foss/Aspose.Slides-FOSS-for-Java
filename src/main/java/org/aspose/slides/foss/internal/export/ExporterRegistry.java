@@ -30,6 +30,13 @@ public final class ExporterRegistry {
 
     private static final Map<String, Class<? extends ExporterBase>> EXPORTERS = new LinkedHashMap<>();
 
+    static {
+        // The built-in exporters. Registration is done here rather than in a static
+        // initializer on each exporter, so that a lookup can never depend on whether
+        // the exporter class happens to have been loaded already.
+        register(PptxExporter.class);
+    }
+
     private ExporterRegistry() {
         // utility class
     }
@@ -63,6 +70,11 @@ public final class ExporterRegistry {
     /**
      * Get a new exporter instance for a specific format.
      *
+     * <p>An exporter that serves several formats declares a constructor taking the format
+     * value; it is preferred over the no-arg constructor so that the instance knows which
+     * of its formats was asked for. Without this an exporter registered for six formats
+     * would be built in its default one every time.</p>
+     *
      * @param formatValue the SaveFormat value string (e.g., "Pptx", "Pdf")
      * @return an exporter instance, or empty if no exporter is registered for this format
      */
@@ -72,7 +84,11 @@ public final class ExporterRegistry {
             return Optional.empty();
         }
         try {
-            return Optional.of(clazz.getDeclaredConstructor().newInstance());
+            try {
+                return Optional.of(clazz.getDeclaredConstructor(String.class).newInstance(formatValue));
+            } catch (NoSuchMethodException e) {
+                return Optional.of(clazz.getDeclaredConstructor().newInstance());
+            }
         } catch (InstantiationException | IllegalAccessException
                  | InvocationTargetException | NoSuchMethodException e) {
             throw new IllegalStateException(

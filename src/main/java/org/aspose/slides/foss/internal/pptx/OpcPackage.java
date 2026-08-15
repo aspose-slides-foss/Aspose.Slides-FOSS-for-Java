@@ -185,6 +185,11 @@ public final class OpcPackage {
      * @param doc the XML document
      */
     public void serializeXml(String uri, Document doc) {
+        // A text body left with no paragraph is invalid however it came to be empty.
+        // Repaired here, on a copy, rather than on each route that can empty one: the
+        // paragraph collection reads this same tree and must still be able to report a
+        // count of zero after being cleared.
+        Document toWrite = TextBodies.withParagraphs(doc);
         try {
             var transformer = TransformerFactory.newInstance().newTransformer();
             // Never re-indent. The parser keeps the whitespace text nodes of the
@@ -196,7 +201,7 @@ public final class OpcPackage {
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
             var sw = new ByteArrayOutputStream();
-            transformer.transform(new DOMSource(doc), new StreamResult(sw));
+            transformer.transform(new DOMSource(toWrite), new StreamResult(sw));
             parts.put(uri, sw.toByteArray());
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize XML part: " + uri, e);

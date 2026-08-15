@@ -262,6 +262,16 @@ public final class ParagraphCollection extends BaseCollection<IParagraph>
         return indexOf(item) >= 0;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The collection can be emptied: a text body with no paragraph is not valid, but the
+     * empty paragraph that keeps it valid is put in at serialization time — see
+     * {@link org.aspose.slides.foss.internal.pptx.TextBodies}. Inserting it here instead
+     * would make the count of a cleared collection one rather than zero, and a caller
+     * draining the collection with {@code while (size() > 0) removeAt(0)} would never
+     * finish.</p>
+     */
     @Override
     public void clear() {
         if (txbodyElement != null) {

@@ -55,6 +55,8 @@ public final class Presentation implements IPresentation {
     // Lazily initialized maps for master/layout slide resolution
     private Map<String, MasterSlide> masterSlidesMap;
     private Map<String, LayoutSlide> layoutSlidesMap;
+    private List<IMasterSlide> parsedMasters;
+    private List<ILayoutSlide> parsedLayouts;
 
     /**
      * Creates a new blank presentation with one slide.
@@ -116,7 +118,9 @@ public final class Presentation implements IPresentation {
         imageCollection.loadFromPackage();
         masters = new MasterSlideCollection();
         globalLayoutSlides = new GlobalLayoutSlideCollection();
-        initDefaultMasterAndLayout();
+        if (!loadMastersAndLayouts()) {
+            initDefaultMasterAndLayout();
+        }
         slides = new SlideCollection();
         loadSlides();
         notesSize = new NotesSize(new SizeF(540f, 720f));
@@ -125,6 +129,33 @@ public final class Presentation implements IPresentation {
         loadFirstSlideNumber();
         currentDateTime = LocalDateTime.now();
         sourceFormat = SourceFormat.PPTX;
+    }
+
+    /**
+     * Populates {@link #getMasters()} and {@link #getLayoutSlides()} from the
+     * masters and layouts the package actually contains.
+     *
+     * <p>Without this the load path fabricated one synthetic master and one
+     * synthetic layout named "Blank" and published those instead, so
+     * {@code addEmptySlide(pres.getLayoutSlides().get(0))} — the documented
+     * form — always passed a layout that is not in the document, and nothing
+     * could inherit placeholders or a theme from it. The parser that reads the
+     * real ones already existed; only {@code Slide.resolveLayoutSlide} reached
+     * it.</p>
+     *
+     * @return {@code true} if the package declared at least one master, so that
+     *         the blank-presentation fallback is used only when it has none
+     */
+    private boolean loadMastersAndLayouts() {
+        ensureLayoutSlidesParsed();
+        if (parsedMasters.isEmpty()) {
+            return false;
+        }
+        for (IMasterSlide master : parsedMasters) {
+            masters.add(master);
+        }
+        globalLayoutSlides.initInternal(new ArrayList<>(parsedLayouts));
+        return true;
     }
 
     private void initDefaultMasterAndLayout() {
@@ -444,6 +475,8 @@ public final class Presentation implements IPresentation {
 
         masterSlidesMap = new HashMap<>();
         layoutSlidesMap = new HashMap<>();
+        parsedMasters = new ArrayList<>();
+        parsedLayouts = new ArrayList<>();
 
         var presRels = new RelsHelper(pkg, PresentationPart.PART_NAME);
         var presPart = new PresentationPart(pkg);
@@ -485,6 +518,7 @@ public final class Presentation implements IPresentation {
                 layoutSlide.initInternal(
                         this, pkg, layoutPartName, layoutPart, this::resolveMasterSlide);
                 layoutSlidesMap.put(layoutPartName, layoutSlide);
+                parsedLayouts.add(layoutSlide);
                 masterLayouts.add(layoutSlide);
             }
 
@@ -492,6 +526,7 @@ public final class Presentation implements IPresentation {
             var masterSlide = new MasterSlide();
             masterSlide.initInternal(this, pkg, masterPartName, masterPart, masterLayouts);
             masterSlidesMap.put(masterPartName, masterSlide);
+            parsedMasters.add(masterSlide);
         }
     }
 
@@ -881,6 +916,8 @@ public final class Presentation implements IPresentation {
     public void dispose() {
         masterSlidesMap = null;
         layoutSlidesMap = null;
+        parsedMasters = null;
+        parsedLayouts = null;
         pkg.clear();
     }
 

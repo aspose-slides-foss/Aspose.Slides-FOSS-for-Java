@@ -80,6 +80,38 @@ public final class LayoutSlide extends BaseSlide implements ILayoutSlide {
         this.layoutType = layoutType;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For a layout read from a package the name lives in
+     * {@code <p:cSld name="…">} of the layout part, not in this object, so it is
+     * read from there rather than reported as empty.</p>
+     */
+    @Override
+    public String getName() {
+        if (layoutPart != null) {
+            String partName = layoutPart.getName();
+            if (partName != null && !partName.isEmpty()) {
+                return partName;
+            }
+        }
+        return super.getName();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For a layout read from a package the name is written back to
+     * {@code <p:cSld name="…">}, so that it survives a save.</p>
+     */
+    @Override
+    public void setName(String name) {
+        super.setName(name);
+        if (layoutPart != null) {
+            layoutPart.setName(name != null ? name : "");
+        }
+    }
+
     @Override
     public IPresentation getPresentation() {
         return presentationRef;

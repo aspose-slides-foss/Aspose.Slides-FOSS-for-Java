@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,6 +65,35 @@ class ResaveConformanceTest {
             assertThat(after.text("ppt/slides/slide1.xml"))
                     .as("slide 1 of %s after a no-op re-save", second)
                     .isEqualTo(before.text("ppt/slides/slide1.xml"));
+        }
+    }
+
+    /**
+     * Opening a deck this library did not write and saving it must lose no part of it.
+     *
+     * <p>A part that is silently dropped is invisible in everything but the file: the deck
+     * still opens, and the chart, the embedded workbook or the theme that went missing is
+     * only noticed by whoever needed it. Asserted by name and not by count, so a part
+     * dropped and another added cannot cancel out.</p>
+     */
+    @Test
+    void openingAndSavingADeckMustLoseNoPartOfIt() throws Exception {
+        Path source = Fixtures.authoredDeck(tempDir, "authored.pptx", "First", "Second", "Third");
+
+        Path out = tempDir.resolve("round-tripped.pptx");
+        try (var pres = new Presentation(source.toString())) {
+            pres.save(out.toString(), SaveFormat.PPTX);
+        }
+
+        try (PptxPackage before = PptxPackage.open(source);
+             PptxPackage after = PptxPackage.open(out)) {
+            var lost = new ArrayList<>(before.entryNames());
+            lost.removeAll(after.entryNames());
+            assertThat(lost)
+                    .as("parts of %s that did not survive being saved to %s; the file had %d "
+                            + "parts and now has %d", source, out,
+                            before.entryNames().size(), after.entryNames().size())
+                    .isEmpty();
         }
     }
 }

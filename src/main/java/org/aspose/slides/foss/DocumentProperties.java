@@ -506,9 +506,6 @@ public final class DocumentProperties implements IDocumentProperties {
     // ---- Save ----
 
     /**
-     * Serializes all loaded parts back to the package.
-     */
-    /**
      * Sets the statistics that describe the document rather than the author.
      *
      * <p>These are recomputed from the presentation before every save; they are
@@ -531,6 +528,7 @@ public final class DocumentProperties implements IDocumentProperties {
         app.markDirty();
     }
 
+    /** Serializes every loaded property part back to the package. */
     public void save() {
         if (corePart != null) corePart.save();
         if (appPart != null) appPart.save();

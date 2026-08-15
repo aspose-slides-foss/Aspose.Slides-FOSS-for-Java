@@ -738,7 +738,7 @@ public final class Presentation implements IPresentation {
             if (text == null || text.isBlank()) {
                 continue;
             }
-            words += text.trim().split("\s+").length;
+            words += text.trim().split("\\s+").length;
         }
         return words;
     }
@@ -757,7 +757,9 @@ public final class Presentation implements IPresentation {
         Objects.requireNonNull(format, "format");
         return ExporterRegistry.getExporter(format.getValue())
                 .orElseThrow(() -> new UnsupportedOperationException(
-                        "Export format '" + format.getValue() + "' is not supported"));
+                        "Export format '" + format.getValue() + "' is not supported. "
+                                + "Writable formats are: "
+                                + String.join(", ", ExporterRegistry.getSupportedFormats())));
     }
 
     private void saveFirstSlideNumber() {
@@ -790,7 +792,6 @@ public final class Presentation implements IPresentation {
 
         // Add relationship if not present
         addPresentationRelationship(
-                "commentAuthors",
                 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors",
                 "commentAuthors.xml"
         );
@@ -954,53 +955,39 @@ public final class Presentation implements IPresentation {
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : fallback;
     }
 
-    private void addPresentationRelationship(String idSuffix, String type, String target) {
-        String relsUri = "ppt/_rels/presentation.xml.rels";
-        Document doc = pkg.parseXml(relsUri);
-        if (doc == null) return;
-        Element root = doc.getDocumentElement();
-        // Check if relationship already exists
-        NodeList rels = root.getElementsByTagName("Relationship");
-        for (int i = 0; i < rels.getLength(); i++) {
-            Element rel = (Element) rels.item(i);
-            if (type.equals(rel.getAttribute("Type"))) return;
-        }
-        Element rel = doc.createElementNS(REL_NS, "Relationship");
-        rel.setAttribute("Id", "rId_" + idSuffix);
-        rel.setAttribute("Type", type);
-        rel.setAttribute("Target", target);
-        root.appendChild(rel);
-        pkg.serializeXml(relsUri, doc);
-    }
-
-    private void addSlideCommentRelationship(int slideNumber) {
-        String relsUri = "ppt/slides/_rels/slide" + slideNumber + ".xml.rels";
-        String type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
-        Document doc = pkg.parseXml(relsUri);
-        if (doc == null) {
-            doc = OpcPackage.newDocument();
-            Element root = doc.createElementNS(REL_NS, "Relationships");
-            doc.appendChild(root);
-            Element rel = doc.createElementNS(REL_NS, "Relationship");
-            rel.setAttribute("Id", "rId_comments");
-            rel.setAttribute("Type", type);
-            rel.setAttribute("Target", "../comments/comment" + slideNumber + ".xml");
-            root.appendChild(rel);
-            pkg.serializeXml(relsUri, doc);
+    /**
+     * Relates a part from {@code ppt/presentation.xml}, if it is not related already.
+     *
+     * <p>The id is allocated by {@link RelsHelper} rather than made up from the part's
+     * name: an id only has to be unique within the one {@code .rels} file and nothing
+     * else about it means anything, so a second scheme is one more thing to keep from
+     * colliding with the first.</p>
+     *
+     * @param type   the relationship type URI
+     * @param target the target, relative to {@code ppt/}
+     */
+    private void addPresentationRelationship(String type, String target) {
+        var rels = new RelsHelper(pkg, PresentationPart.PART_NAME);
+        boolean present = rels.getAllRelationships().stream()
+                .anyMatch(rel -> type.equals(rel.type()));
+        if (present) {
             return;
         }
-        Element root = doc.getDocumentElement();
-        NodeList rels = root.getElementsByTagName("Relationship");
-        for (int i = 0; i < rels.getLength(); i++) {
-            Element rel = (Element) rels.item(i);
-            if (type.equals(rel.getAttribute("Type"))) return;
+        rels.addRelationship(type, target);
+        rels.save();
+    }
+
+    /** Relates a slide to its classic comment part, if it is not related already. */
+    private void addSlideCommentRelationship(int slideNumber) {
+        String type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
+        var rels = new RelsHelper(pkg, "ppt/slides/slide" + slideNumber + ".xml");
+        boolean present = rels.getAllRelationships().stream()
+                .anyMatch(rel -> type.equals(rel.type()));
+        if (present) {
+            return;
         }
-        Element rel = doc.createElementNS(REL_NS, "Relationship");
-        rel.setAttribute("Id", "rId_comments");
-        rel.setAttribute("Type", type);
-        rel.setAttribute("Target", "../comments/comment" + slideNumber + ".xml");
-        root.appendChild(rel);
-        pkg.serializeXml(relsUri, doc);
+        rels.addRelationship(type, "../comments/comment" + slideNumber + ".xml");
+        rels.save();
     }
 
     // ---- Public API ----

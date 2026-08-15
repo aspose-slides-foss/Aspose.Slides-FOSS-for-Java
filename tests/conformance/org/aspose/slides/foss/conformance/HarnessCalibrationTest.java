@@ -98,7 +98,15 @@ class HarnessCalibrationTest {
         }
     }
 
-    /** Child order violations are detected. */
+    /**
+     * Child order violations are detected, by the ordering rule and not by another.
+     *
+     * <p>Every name passed here is one the element really has, so the only rule that can
+     * fail is the one being calibrated. Asserting on the message rather than only on the
+     * failure is what keeps that true: the same call also rejects a child that is not in
+     * the sequence at all, and a test that accepted either would pass without the ordering
+     * rule working.</p>
+     */
     @Test
     void childOrderViolationIsDetected() throws IOException {
         Path good = Fixtures.authoredDeck(tempDir, "good.pptx", "One");
@@ -108,7 +116,37 @@ class HarnessCalibrationTest {
             assertThat(catchAssertionError(() -> PackageAssertions.assertChildrenInSchemaOrder(
                     spTree, "p:sp", "p:nvGrpSpPr", "p:grpSpPr")))
                     .as("the rule must reject children that appear out of sequence")
-                    .isNotNull();
+                    .isNotNull()
+                    .hasMessageContaining("is not the schema order");
+        }
+    }
+
+    /** A child the sequence does not allow at all is detected, and named. */
+    @Test
+    void childOutsideTheSchemaSequenceIsDetected() throws IOException {
+        Path good = Fixtures.authoredDeck(tempDir, "good.pptx", "One");
+        try (PptxPackage pkg = PptxPackage.open(good)) {
+            var spTree = PackageAssertions.selectNodes(pkg, "ppt/slides/slide1.xml",
+                    "//p:cSld/p:spTree").get(0);
+            assertThat(catchAssertionError(() -> PackageAssertions.assertChildrenInSchemaOrder(
+                    spTree, "p:nvGrpSpPr", "p:grpSpPr")))
+                    .as("the rule must reject a child the sequence does not contain")
+                    .isNotNull()
+                    .hasMessageContaining("p:sp");
+        }
+    }
+
+    /** The ordering rule accepts children that are in sequence, so it can fail meaningfully. */
+    @Test
+    void childrenInSchemaOrderAreAccepted() throws IOException {
+        Path good = Fixtures.authoredDeck(tempDir, "good.pptx", "One");
+        try (PptxPackage pkg = PptxPackage.open(good)) {
+            var spTree = PackageAssertions.selectNodes(pkg, "ppt/slides/slide1.xml",
+                    "//p:cSld/p:spTree").get(0);
+            assertThat(catchAssertionError(() -> PackageAssertions.assertChildrenInSchemaOrder(
+                    spTree, "p:nvGrpSpPr", "p:grpSpPr", "p:sp")))
+                    .as("the rule must accept children that are in sequence")
+                    .isNull();
         }
     }
 

@@ -67,13 +67,25 @@ class PatternFillConformanceTest {
         try (PptxPackage pkg = PptxPackage.open(out)) {
             List<Element> fills = PackageAssertions.selectNodes(
                     pkg, "ppt/slides/slide1.xml", "//a:pattFill");
-            if (fills.isEmpty()) {
+            String slide = pkg.text("ppt/slides/slide1.xml");
+
+            if (style == PatternStyle.NOT_DEFINED || style == PatternStyle.UNKNOWN) {
+                assertThat(fills.stream().filter(f -> f.hasAttribute("prst")).toList())
+                        .as("PatternStyle.%s names no pattern, so nothing may be written as "
+                                + "its prst%n%s", style, slide)
+                        .isEmpty();
                 return;
             }
+
+            // Asserted rather than skipped: a writer that stopped writing pattern fills
+            // altogether would satisfy a test that returns early when it finds none.
+            assertThat(fills)
+                    .as("a:pattFill in slide 1 for PatternStyle.%s%n%s", style, slide)
+                    .hasSize(1);
             Element fill = fills.get(0);
-            if (!fill.hasAttribute("prst")) {
-                return;
-            }
+            assertThat(fill.hasAttribute("prst"))
+                    .as("a:pattFill/@prst for PatternStyle.%s%n%s", style, slide)
+                    .isTrue();
             assertThat(fill.getAttribute("prst"))
                     .as("a:pattFill/@prst written for PatternStyle.%s", style)
                     .isIn(ST_PRESET_PATTERN_VAL);

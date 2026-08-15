@@ -7,6 +7,8 @@ import org.aspose.slides.foss.internal.pptx.OpcPackage;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,12 +33,25 @@ import java.util.Map;
  */
 public final class PptxExporter extends ExporterBase {
 
-    /** Mapping from SaveFormat values to main presentation content types. */
-    private static final Map<String, String> CONTENT_TYPES = Map.of(
-            "Pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-            "Ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml",
-            "Potx", "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"
-    );
+    /**
+     * Mapping from SaveFormat values to main presentation content types.
+     *
+     * <p>Insertion-ordered: the key order is what a caller is shown when it asks for a
+     * format that cannot be written, and an unordered map would list them differently
+     * from one run to the next.</p>
+     */
+    private static final Map<String, String> CONTENT_TYPES = contentTypes();
+
+    private static Map<String, String> contentTypes() {
+        var types = new LinkedHashMap<String, String>();
+        types.put("Pptx",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml");
+        types.put("Ppsx",
+                "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml");
+        types.put("Potx",
+                "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml");
+        return Collections.unmodifiableMap(types);
+    }
 
     /** The part whose content type identifies the format of the whole package. */
     private static final String MAIN_PART_NAME = "/ppt/presentation.xml";

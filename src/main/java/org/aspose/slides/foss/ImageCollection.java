@@ -180,15 +180,6 @@ public final class ImageCollection implements IImageCollection {
     }
 
     /**
-     * Returns the next relationship ID for image references.
-     *
-     * @return a unique relationship ID string
-     */
-    String nextRelId() {
-        return "rId_img" + (images.size());
-    }
-
-    /**
      * Loads images from existing OPC package parts during deserialization.
      */
     void loadFromPackage() {

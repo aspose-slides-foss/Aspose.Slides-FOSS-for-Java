@@ -76,9 +76,6 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
         this.parentSlide = parentSlide;
         this.portions = new PortionCollection(pElement, this::save);
         loadPortions();
-        if (slidePart != null && parentSlide != null) {
-            Picture.flushPendingBlipImages(pElement, parentSlide);
-        }
         return this;
     }
 

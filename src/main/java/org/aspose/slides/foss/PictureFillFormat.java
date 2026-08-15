@@ -57,6 +57,22 @@ public final class PictureFillFormat extends PVIObject implements IPictureFillFo
     private Runnable saveCallback;
     private int dpi = -1;
 
+    /** The package and part this fill is serialized into, when it belongs to one. */
+    private org.aspose.slides.foss.internal.pptx.OpcPackage partPackage;
+    private String partName;
+
+    /**
+     * Records which package part this fill is serialized into, so that the picture it
+     * holds can declare its image relationship in that part's {@code .rels}.
+     *
+     * @param opcPackage the package, or {@code null} if unattached
+     * @param partName   the part name, or {@code null} if unattached
+     */
+    void setPartContext(org.aspose.slides.foss.internal.pptx.OpcPackage opcPackage, String partName) {
+        this.partPackage = opcPackage;
+        this.partName = partName;
+    }
+
     /**
      * Creates an uninitialized PictureFillFormat. Call {@link #initInternal} to complete setup.
      */
@@ -240,7 +256,11 @@ public final class PictureFillFormat extends PVIObject implements IPictureFillFo
             return null;
         }
         var picture = new Picture();
-        picture.initInternal(blip, parentSlide);
+        if (partPackage != null && partName != null) {
+            picture.initInternal(blip, partPackage, partName, parentSlide);
+        } else {
+            picture.initInternal(blip, parentSlide);
+        }
         return picture;
     }
 

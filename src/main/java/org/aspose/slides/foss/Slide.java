@@ -95,6 +95,7 @@ public final class Slide implements ISlide {
         Element spTree = findSpTree(doc.getDocumentElement());
         Runnable saveCallback = () -> pkg.serializeXml(slidePartUri, doc);
         shapes = new ShapeCollection(spTree, saveCallback);
+        shapes.setPartContext(pkg, slidePartUri);
         resolveLayoutSlide(pkg);
     }
 

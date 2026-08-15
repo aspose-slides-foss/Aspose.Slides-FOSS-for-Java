@@ -59,8 +59,18 @@ class PictureTest {
         assertThat(picture.getImage()).isNull();
     }
 
+    /**
+     * A picture that is not bound to a package part keeps the image but writes no
+     * {@code r:embed}.
+     *
+     * <p>An {@code r:embed} names a relationship in the owning part's {@code .rels}. With no
+     * part there is no such relationship, and inventing an id produces a reference that
+     * resolves to nothing — a picture that readers show as an empty box. The relationship is
+     * written when the picture belongs to a part; that path is asserted against the produced
+     * package in the conformance tests.</p>
+     */
     @Test
-    void setImage_setsEmbedAttributeOnBlip() {
+    void setImage_withoutAPartKeepsTheImageAndInventsNoRelationship() {
         Element blip = createBlip();
         var picture = new Picture();
         picture.initInternal(blip, null);
@@ -69,7 +79,7 @@ class PictureTest {
         picture.setImage(stubImage);
 
         assertThat(picture.getImage()).isSameAs(stubImage);
-        assertThat(blip.getAttributeNS(NS_R, "embed")).isNotEmpty();
+        assertThat(blip.hasAttributeNS(NS_R, "embed")).isFalse();
     }
 
     @Test

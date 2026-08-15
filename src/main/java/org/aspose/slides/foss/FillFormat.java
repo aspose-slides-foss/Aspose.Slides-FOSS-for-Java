@@ -29,6 +29,22 @@ public class FillFormat extends PVIObject implements IFillFormat, IFillParamSour
     protected Element parentElement;
     protected Runnable saveCallback;
 
+    /** The package and part this fill is serialized into, when it belongs to one. */
+    private org.aspose.slides.foss.internal.pptx.OpcPackage partPackage;
+    private String partName;
+
+    /**
+     * Records which package part this fill is serialized into, so that a picture fill
+     * can declare its image relationship in that part's {@code .rels}.
+     *
+     * @param opcPackage the package, or {@code null} if unattached
+     * @param partName   the part name, or {@code null} if unattached
+     */
+    void setPartContext(org.aspose.slides.foss.internal.pptx.OpcPackage opcPackage, String partName) {
+        this.partPackage = opcPackage;
+        this.partName = partName;
+    }
+
     /**
      * Creates a new FillFormat backed by the given parent XML element.
      *
@@ -221,7 +237,9 @@ public class FillFormat extends PVIObject implements IFillFormat, IFillParamSour
         if (el == null || !"blipFill".equals(el.getLocalName())) {
             el = getOrCreateFill("blipFill");
         }
-        return new PictureFillFormat(el, saveCallback);
+        var pictureFill = new PictureFillFormat(el, saveCallback);
+        pictureFill.setPartContext(partPackage, partName);
+        return pictureFill;
     }
 
     @Override

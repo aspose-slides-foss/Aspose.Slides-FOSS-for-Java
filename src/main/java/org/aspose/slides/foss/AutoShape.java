@@ -183,6 +183,6 @@ public final class AutoShape extends GeometryShape implements IAutoShape {
         if (spPr == null) {
             spPr = ensureChild(xmlElement, NS_P, "spPr", "p:spPr");
         }
-        return new FillFormat(spPr, saveCallback);
+        return withPartContext(new FillFormat(spPr, saveCallback));
     }
 }

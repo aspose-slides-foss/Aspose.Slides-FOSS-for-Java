@@ -74,22 +74,18 @@ public final class PatternFormat extends PVIObject implements IPatternFormat {
 
     @Override
     public PatternStyle getPatternStyle() {
-        String prst = pattFill.getAttribute("prst");
-        if (prst == null || prst.isEmpty()) return PatternStyle.NOT_DEFINED;
-        String enumName = ColorFormat.camelToUpperSnake(prst);
-        try {
-            return PatternStyle.valueOf(enumName);
-        } catch (IllegalArgumentException e) {
-            return PatternStyle.NOT_DEFINED;
-        }
+        return PatternStyle.fromOoxml(pattFill.getAttribute("prst"));
     }
 
     @Override
     public void setPatternStyle(PatternStyle value) {
-        if (value == PatternStyle.NOT_DEFINED) {
+        // The token is taken from the enum's own table, never derived from the constant
+        // name: prst is restricted to ST_PresetPatternVal, and a token outside that list
+        // is invalid content that PowerPoint refuses the file over.
+        String ooxmlVal = value == null ? null : value.getOoxml();
+        if (ooxmlVal == null) {
             pattFill.removeAttribute("prst");
         } else {
-            String ooxmlVal = ColorFormat.upperSnakeToCamel(value.name());
             pattFill.setAttribute("prst", ooxmlVal);
         }
         save();

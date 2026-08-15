@@ -70,10 +70,28 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
      */
     public Paragraph initInternal(Element pElement, Element txbodyElement,
                                   Object slidePart, IBaseSlide parentSlide) {
+        return initInternal(pElement, txbodyElement, slidePart, parentSlide, this.saveCallback);
+    }
+
+    /**
+     * Initialises this paragraph from existing OOXML elements, replacing its
+     * save callback.
+     *
+     * @param pElement      the {@code <a:p>} XML element
+     * @param txbodyElement the {@code <a:txBody>} XML element containing this paragraph
+     * @param slidePart     the OPC slide part that owns the paragraph, or {@code null}
+     * @param parentSlide   the parent slide, or {@code null}
+     * @param saveCallback  callback invoked after mutations, or {@code null}
+     * @return this paragraph, for method chaining
+     */
+    public Paragraph initInternal(Element pElement, Element txbodyElement,
+                                  Object slidePart, IBaseSlide parentSlide,
+                                  Runnable saveCallback) {
         this.pElement = pElement;
         this.txbodyElement = txbodyElement;
         this.slidePart = slidePart;
         this.parentSlide = parentSlide;
+        this.saveCallback = saveCallback;
         this.portions = new PortionCollection(pElement, this::save);
         loadPortions();
         return this;

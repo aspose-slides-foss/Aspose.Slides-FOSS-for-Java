@@ -396,6 +396,8 @@ public final class Presentation implements IPresentation {
             Document doc = pkg.parseXml(partUri);
             if (doc == null) continue;
             var slideComments = new ArrayList<Comment>();
+            var identifiers = new ArrayList<ThreadedCommentsPart.ParentRef>();
+            var parentRefs = new ArrayList<ThreadedCommentsPart.ParentRef>();
             NodeList cmNodes = doc.getElementsByTagNameNS(NS_P, "cm");
             for (int i = 0; i < cmNodes.getLength(); i++) {
                 Element cmEl = (Element) cmNodes.item(i);
@@ -424,10 +426,56 @@ public final class Presentation implements IPresentation {
                 if (author != null) {
                     slideComments.add((Comment) author.getCommentCollection()
                             .addComment(text, slide, new PointF(x, y), dt));
+                    identifiers.add(new ThreadedCommentsPart.ParentRef(
+                            authorId, parseIdx(cmEl.getAttribute("idx"), i + 1)));
+                    parentRefs.add(ThreadedCommentsPart.classicThreadParent(cmEl));
                 }
             }
-            restoreCommentThreads(slideNumber, slideComments);
+            if (!restoreCommentThreadsFromClassicList(slideComments, identifiers, parentRefs)) {
+                restoreCommentThreads(slideNumber, slideComments);
+            }
         }
+    }
+
+    /** Reads a {@code p:cm/@idx}, falling back to the comment's position in the list. */
+    private static int parseIdx(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * Restores the reply relationships recorded on the classic comment list itself.
+     *
+     * <p>Preferred over the modern part because it is what a reader that renders comments
+     * uses, and because a file written by another producer may carry the classic list
+     * threaded and no modern part at all.</p>
+     *
+     * @param slideComments the slide's comments, in the order the classic part lists them
+     * @param identifiers   each comment's own {@code (authorId, idx)}
+     * @param parentRefs    each comment's parent reference, or {@code null} where it has none
+     * @return {@code true} if the classic list carried a thread, so that the modern part
+     *         need not be consulted
+     */
+    private boolean restoreCommentThreadsFromClassicList(
+            List<Comment> slideComments,
+            List<ThreadedCommentsPart.ParentRef> identifiers,
+            List<ThreadedCommentsPart.ParentRef> parentRefs) {
+        boolean any = false;
+        for (int i = 0; i < slideComments.size(); i++) {
+            ThreadedCommentsPart.ParentRef parent = parentRefs.get(i);
+            if (parent == null) {
+                continue;
+            }
+            any = true;
+            int parentIndex = identifiers.indexOf(parent);
+            if (parentIndex >= 0 && parentIndex != i) {
+                slideComments.get(i).setParentComment(slideComments.get(parentIndex));
+            }
+        }
+        return any;
     }
 
     /**
@@ -777,12 +825,18 @@ public final class Presentation implements IPresentation {
             Document doc = OpcPackage.newDocument();
             Element root = doc.createElementNS(NS_P, "p:cmLst");
             doc.appendChild(root);
+            // The index a reply points at has to be known before the reply is written,
+            // so the whole list is numbered first.
+            var indices = new java.util.IdentityHashMap<Comment, Integer>();
             int idx = 1;
+            for (Comment c : slideComments) {
+                indices.put(c, idx++);
+            }
             for (Comment c : slideComments) {
                 Element cmEl = doc.createElementNS(NS_P, "p:cm");
                 CommentAuthor author = (CommentAuthor) c.getAuthor();
                 cmEl.setAttribute("authorId", String.valueOf(author.getId()));
-                cmEl.setAttribute("idx", String.valueOf(idx++));
+                cmEl.setAttribute("idx", String.valueOf(indices.get(c)));
                 if (c.getCreatedTime() != null) {
                     cmEl.setAttribute("dt", c.getCreatedTime().format(DateTimeFormatter.ISO_DATE_TIME));
                 }
@@ -793,6 +847,9 @@ public final class Presentation implements IPresentation {
                 Element textEl = doc.createElementNS(NS_P, "p:text");
                 textEl.setTextContent(c.getText());
                 cmEl.appendChild(textEl);
+                // A reader that renders comments takes the thread from here, not from the
+                // modern part: without this the reply opens as an unrelated comment.
+                ThreadedCommentsPart.setClassicThreadParent(cmEl, classicParentRef(c, indices));
                 root.appendChild(cmEl);
             }
             pkg.serializeXml(partUri, doc);
@@ -811,6 +868,28 @@ public final class Presentation implements IPresentation {
             saveThreadedComments(slidePartUri, slideNumber, slideComments);
         }
         saveCommentAuthorsForThreads();
+    }
+
+    /**
+     * Names, as the classic comment list names it, the comment a reply answers.
+     *
+     * @param comment the comment being written
+     * @param indices the {@code @idx} assigned to each comment on the slide
+     * @return the parent reference, or {@code null} when the comment is not a reply or
+     *         replies to a comment on another slide
+     */
+    private static ThreadedCommentsPart.ParentRef classicParentRef(
+            Comment comment, Map<Comment, Integer> indices) {
+        IComment parent = comment.getParentComment().orElse(null);
+        if (!(parent instanceof Comment parentComment)) {
+            return null;
+        }
+        Integer parentIdx = indices.get(parentComment);
+        if (parentIdx == null) {
+            return null;
+        }
+        return new ThreadedCommentsPart.ParentRef(
+                ((CommentAuthor) parentComment.getAuthor()).getId(), parentIdx);
     }
 
     /**

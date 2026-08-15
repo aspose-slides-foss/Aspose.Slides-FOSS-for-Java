@@ -42,6 +42,7 @@ public final class PackageAssertions {
         PREFIXES.put("p", PptxPackage.NS_P);
         PREFIXES.put("a", PptxPackage.NS_A);
         PREFIXES.put("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main");
+        PREFIXES.put("p15", "http://schemas.microsoft.com/office/powerpoint/2012/main");
         PREFIXES.put("p188", "http://schemas.microsoft.com/office/powerpoint/2018/8/main");
         PREFIXES.put("ep", "http://schemas.openxmlformats.org/officeDocument/2006/"
                 + "extended-properties");
@@ -250,7 +251,8 @@ public final class PackageAssertions {
      * Evaluates an XPath over a part and returns the matching elements.
      *
      * <p>Bind namespaces with the prefixes {@code p}, {@code a}, {@code r}, {@code ct},
-     * {@code rel}, {@code p14}, {@code p188}, {@code ep}, {@code dc} and {@code cp}.</p>
+     * {@code rel}, {@code p14}, {@code p15}, {@code p188}, {@code ep}, {@code dc} and
+     * {@code cp}.</p>
      *
      * @param pkg      the package
      * @param partName the part to search

@@ -25,7 +25,12 @@ import java.util.UUID;
  * which gives each author the GUID those entries refer to.</p>
  *
  * <p>The classic {@code ppt/comments/} parts are still written beside these, so
- * that a reader that does not understand threading still shows the comments.</p>
+ * that a reader that does not understand threading still shows the comments —
+ * and the thread is repeated on them as a {@code p15:threadingInfo} extension,
+ * because that is where a reader that renders comments looks for it. A package
+ * that carries the modern part alone is valid and opens, and the reply is shown
+ * as a second unrelated comment: the discussion is silently flattened. Both
+ * places are written, and {@link #setClassicThreadParent} is the second.</p>
  *
  * <p>Identifiers are derived from the content they name — the author from name
  * and initials, a comment from its slide and its position in that slide's
@@ -37,6 +42,21 @@ public final class ThreadedCommentsPart {
     /** Namespace of the PowerPoint 2018 threaded-comment elements. */
     public static final String NS_P188 =
             "http://schemas.microsoft.com/office/powerpoint/2018/8/main";
+
+    /** Namespace of the PowerPoint 2012 elements that thread the classic comment list. */
+    public static final String NS_P15 = "http://schemas.microsoft.com/office/powerpoint/2012/main";
+
+    /**
+     * The {@code p:ext/@uri} that identifies a {@code <p15:threadingInfo>} extension.
+     *
+     * <p>An extension is recognised by this URI, not by the element inside it, so it has to
+     * be written exactly.</p>
+     */
+    public static final String THREADING_INFO_URI = "{C676402C-5697-4E1C-873F-D02D1690AC5C}";
+
+    /** Namespace of the classic PresentationML comment elements. */
+    private static final String NS_P =
+            "http://schemas.openxmlformats.org/presentationml/2006/main";
 
     /** Namespace of the DrawingML elements used inside a comment's text body. */
     private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -185,6 +205,119 @@ public final class ThreadedCommentsPart {
         p.appendChild(r);
         txBody.appendChild(p);
         return txBody;
+    }
+
+    /**
+     * Identifies the comment a reply answers, as the classic list names it.
+     *
+     * <p>By author and index rather than by one id: a comment's {@code idx} is
+     * only unique within its author.</p>
+     *
+     * @param authorId the {@code p:cmAuthor/@id} of the parent's author
+     * @param idx      the parent's {@code p:cm/@idx}
+     */
+    public record ParentRef(int authorId, int idx) {
+    }
+
+    /**
+     * Records on a classic {@code <p:cm>} the comment it replies to, or clears it.
+     *
+     * <p>{@code CT_Comment} declares no attribute for a parent; the extension list
+     * is where markup outside the standard belongs, and {@code p:extLst} is the
+     * last element of the sequence, so it is appended.</p>
+     *
+     * @param cm     the {@code <p:cm>} element
+     * @param parent the comment being replied to, or {@code null} for none
+     */
+    public static void setClassicThreadParent(Element cm, ParentRef parent) {
+        removeThreadingExtension(cm);
+        if (parent == null) {
+            return;
+        }
+        Document doc = cm.getOwnerDocument();
+        Element extLst = firstChild(cm, NS_P, "extLst");
+        if (extLst == null) {
+            extLst = doc.createElementNS(NS_P, "p:extLst");
+            cm.appendChild(extLst);
+        }
+        Element ext = doc.createElementNS(NS_P, "p:ext");
+        ext.setAttribute("uri", THREADING_INFO_URI);
+        extLst.appendChild(ext);
+        Element info = doc.createElementNS(NS_P15, "p15:threadingInfo");
+        info.setAttribute("timeZoneBias", "0");
+        ext.appendChild(info);
+        Element parentCm = doc.createElementNS(NS_P15, "p15:parentCm");
+        parentCm.setAttribute("authorId", String.valueOf(parent.authorId()));
+        parentCm.setAttribute("idx", String.valueOf(parent.idx()));
+        info.appendChild(parentCm);
+    }
+
+    /**
+     * Reads back the comment a classic {@code <p:cm>} replies to.
+     *
+     * @param cm the {@code <p:cm>} element
+     * @return the parent reference, or {@code null} if the comment is not a reply
+     */
+    public static ParentRef classicThreadParent(Element cm) {
+        Element ext = threadingExtension(cm);
+        if (ext == null) {
+            return null;
+        }
+        Element info = firstChild(ext, NS_P15, "threadingInfo");
+        Element parentCm = info == null ? null : firstChild(info, NS_P15, "parentCm");
+        if (parentCm == null) {
+            return null;
+        }
+        try {
+            return new ParentRef(Integer.parseInt(parentCm.getAttribute("authorId")),
+                    Integer.parseInt(parentCm.getAttribute("idx")));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Removes the threading extension, and the extension list if it is left empty. */
+    private static void removeThreadingExtension(Element cm) {
+        Element ext = threadingExtension(cm);
+        if (ext == null) {
+            return;
+        }
+        Element extLst = (Element) ext.getParentNode();
+        extLst.removeChild(ext);
+        if (firstChild(extLst, NS_P, "ext") == null) {
+            extLst.getParentNode().removeChild(extLst);
+        }
+    }
+
+    /** Returns the {@code <p:ext>} carrying the threading extension, or {@code null}. */
+    private static Element threadingExtension(Element cm) {
+        Element extLst = firstChild(cm, NS_P, "extLst");
+        if (extLst == null) {
+            return null;
+        }
+        NodeList children = extLst.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (children.item(i) instanceof Element el
+                    && NS_P.equals(el.getNamespaceURI())
+                    && "ext".equals(el.getLocalName())
+                    && THREADING_INFO_URI.equals(el.getAttribute("uri"))) {
+                return el;
+            }
+        }
+        return null;
+    }
+
+    /** Returns the first child element with the given namespace and local name, or null. */
+    private static Element firstChild(Element parent, String namespace, String localName) {
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (children.item(i) instanceof Element el
+                    && namespace.equals(el.getNamespaceURI())
+                    && localName.equals(el.getLocalName())) {
+                return el;
+            }
+        }
+        return null;
     }
 
     /**

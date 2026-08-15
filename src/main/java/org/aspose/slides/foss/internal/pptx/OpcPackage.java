@@ -10,6 +10,7 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -81,6 +82,71 @@ public final class OpcPackage {
     /** Removes a part by URI. */
     public void removePart(String uri) {
         parts.remove(uri);
+    }
+
+    /**
+     * Removes a part the way ISO/IEC 29500-2 requires, rather than only its bytes.
+     *
+     * <p>Deleting a part is four operations that have to happen together: drop the
+     * {@code Relationship} in the owner's {@code .rels}, drop the {@code Override} in
+     * {@code [Content_Types].xml}, drop the part itself and drop the part's own
+     * {@code .rels}. Doing only the last leaves a relationship and a content type
+     * pointing at nothing, which strict readers — PowerPoint among them — reject.</p>
+     *
+     * <p>Parts that the removed part was the only reference to (its notes slide, its
+     * comments, images used nowhere else) are removed the same way, recursively. A part
+     * that anything else still points at is left alone.</p>
+     *
+     * @param partUri       the part to remove
+     * @param owningPartUri the part whose relationship points at it, or {@code null} if none
+     */
+    public void removePartCascading(String partUri, String owningPartUri) {
+        if (owningPartUri != null) {
+            var ownerRels = new RelsHelper(this, owningPartUri);
+            if (ownerRels.removeRelationshipsTo(partUri)) {
+                ownerRels.save();
+            }
+        }
+        removePartTree(partUri);
+    }
+
+    private void removePartTree(String partUri) {
+        if (!hasPart(partUri)) {
+            return;
+        }
+        List<String> targets = new RelsHelper(this, partUri).internalTargets();
+
+        parts.remove(partUri);
+        parts.remove(RelsHelper.getRelsPartName(partUri));
+        var contentTypes = new ContentTypesManager(this);
+        if (contentTypes.removeOverride("/" + partUri)) {
+            contentTypes.save();
+        }
+
+        for (String target : targets) {
+            if (hasPart(target) && !isReferencedByAnyPart(target)) {
+                removePartTree(target);
+            }
+        }
+    }
+
+    /**
+     * Returns whether any relationship anywhere in the package points at the given part.
+     *
+     * @param partUri the part to look for
+     * @return {@code true} if some {@code .rels} in the package targets it
+     */
+    public boolean isReferencedByAnyPart(String partUri) {
+        for (String name : List.copyOf(parts.keySet())) {
+            if (!name.endsWith(".rels")) {
+                continue;
+            }
+            String owner = RelsHelper.getSourcePartName(name);
+            if (new RelsHelper(this, owner).internalTargets().contains(partUri)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Returns all part URIs as an unmodifiable set. */

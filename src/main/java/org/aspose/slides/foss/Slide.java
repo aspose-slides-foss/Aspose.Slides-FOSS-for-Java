@@ -328,7 +328,7 @@ public final class Slide implements ISlide {
 
     @Override
     public void remove() {
-        presentation.getSlideCollection().getInternalList().remove(this);
+        presentation.getSlideCollection().remove(this);
     }
 
     /**

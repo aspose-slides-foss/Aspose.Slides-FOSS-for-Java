@@ -70,10 +70,12 @@ public final class Presentation implements IPresentation {
         globalLayoutSlides = new GlobalLayoutSlideCollection();
         initDefaultMasterAndLayout();
         slides = new SlideCollection();
-        slides.setPresentation(this);
-        Slide initialSlide = new Slide(this, 0);
-        initialSlide.setLayoutSlide(globalLayoutSlides.get(0));
-        slides.add(initialSlide);
+        slides.initInternal(this, pkg, new PresentationPart(pkg), this::resolveLayoutSlide);
+        for (Slide slide : slides.getInternalList()) {
+            if (slide.getLayoutSlide() == null) {
+                slide.setLayoutSlide(globalLayoutSlides.get(0));
+            }
+        }
         notesSize = new NotesSize(new SizeF(540f, 720f));
         currentDateTime = LocalDateTime.now();
         sourceFormat = SourceFormat.PPTX;
@@ -116,9 +118,8 @@ public final class Presentation implements IPresentation {
         globalLayoutSlides = new GlobalLayoutSlideCollection();
         initDefaultMasterAndLayout();
         slides = new SlideCollection();
-        slides.setPresentation(this);
-        notesSize = new NotesSize(new SizeF(540f, 720f));
         loadSlides();
+        notesSize = new NotesSize(new SizeF(540f, 720f));
         loadCommentAuthors();
         loadComments();
         loadFirstSlideNumber();
@@ -315,17 +316,20 @@ public final class Presentation implements IPresentation {
 
     // ---- Load helpers ----
 
+    /**
+     * Builds the slide collection from {@code ppt/presentation.xml}.
+     *
+     * <p>The slides of a presentation are the entries of {@code p:sldIdLst}, in that order,
+     * each resolved through a relationship. Counting {@code ppt/slides/slideN.xml} parts
+     * instead reports slides that no reader can see, and reports them in file-name order
+     * rather than presentation order.</p>
+     */
     private void loadSlides() {
-        // Count slide parts
-        int slideCount = 0;
-        for (String name : pkg.getPartNames()) {
-            if (name.matches("ppt/slides/slide\\d+\\.xml")) {
-                slideCount++;
-            }
-        }
-        if (slideCount == 0) slideCount = 1;
-        for (int i = 0; i < slideCount; i++) {
-            slides.add(new Slide(this, i));
+        if (pkg.hasPart(PresentationPart.PART_NAME)) {
+            slides.initInternal(this, pkg, new PresentationPart(pkg), this::resolveLayoutSlide);
+        } else {
+            // Not a presentation package; leave the collection empty rather than invent a slide.
+            slides.setPresentation(this);
         }
     }
 

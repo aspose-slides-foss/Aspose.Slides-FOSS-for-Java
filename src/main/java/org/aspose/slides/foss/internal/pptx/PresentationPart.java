@@ -344,6 +344,17 @@ public final class PresentationPart {
     }
 
     /**
+     * Removes a slide reference by the relationship it points through.
+     *
+     * @param relId the relationship ID of the slide to unregister
+     * @return {@code true} if removed, {@code false} if no reference used that relationship
+     */
+    public boolean removeSlideReferenceByRelId(String relId) {
+        Optional<SlideReference> ref = getSlideRefByRelId(relId);
+        return ref.isPresent() && removeSlideReference(ref.get().getSlideId());
+    }
+
+    /**
      * Returns the slide size in EMUs (English Metric Units).
      *
      * @return an array {@code [width, height]} in EMUs

@@ -187,7 +187,12 @@ public final class OpcPackage {
     public void serializeXml(String uri, Document doc) {
         try {
             var transformer = TransformerFactory.newInstance().newTransformer();
-            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            // Never re-indent. The parser keeps the whitespace text nodes of the
+            // document it read, so indenting on output adds a fresh layer of them
+            // to what is already indented: opening a file and saving it unchanged
+            // grew it every time, without bound in a loop, and made byte length
+            // useless as a "did anything change" signal.
+            transformer.setOutputProperty(OutputKeys.INDENT, "no");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
             var sw = new ByteArrayOutputStream();

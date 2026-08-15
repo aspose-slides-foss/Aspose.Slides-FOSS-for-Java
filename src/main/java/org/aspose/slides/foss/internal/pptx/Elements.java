@@ -418,8 +418,8 @@ public final class Elements {
     /** {@code <p:cNvGraphicFramePr>} */
     public static final String P_C_NV_GRAPHIC_FRAME_PR = Ns.P + "cNvGraphicFramePr";
 
-    /** {@code <a:graphicFrameLocking>} */
-    public static final String A_GRAPHIC_FRAME_LOCKING = Ns.A + "graphicFrameLocking";
+    /** {@code <a:graphicFrameLocks>} */
+    public static final String A_GRAPHIC_FRAME_LOCKS = Ns.A + "graphicFrameLocks";
 
     /** {@code <p:nvPr>} */
     public static final String P_NV_PR = Ns.P + "nvPr";

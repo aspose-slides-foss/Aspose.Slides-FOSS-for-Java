@@ -691,9 +691,9 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
         cNvPr.setAttribute("name", tableName);
         nvGfPr.appendChild(cNvPr);
         Element cNvGfPr = doc.createElementNS(NS_P, "p:cNvGraphicFramePr");
-        Element gfLocking = doc.createElementNS(NS_A, "a:graphicFrameLocking");
-        gfLocking.setAttribute("noGrp", "1");
-        cNvGfPr.appendChild(gfLocking);
+        Element gfLocks = doc.createElementNS(NS_A, "a:graphicFrameLocks");
+        gfLocks.setAttribute("noGrp", "1");
+        cNvGfPr.appendChild(gfLocks);
         nvGfPr.appendChild(cNvGfPr);
         nvGfPr.appendChild(doc.createElementNS(NS_P, "p:nvPr"));
         gf.appendChild(nvGfPr);

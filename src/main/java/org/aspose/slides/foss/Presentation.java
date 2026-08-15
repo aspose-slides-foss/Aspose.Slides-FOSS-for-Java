@@ -39,6 +39,7 @@ public final class Presentation implements IPresentation {
 
     private static final String NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
     private static final String NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static final String REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
 
     private final OpcPackage pkg;
@@ -608,8 +609,90 @@ public final class Presentation implements IPresentation {
         }
         saveCommentAuthors();
         saveComments();
+        updateExtendedProperties();
         documentProperties.save();
         saveFirstSlideNumber();
+    }
+
+    /**
+     * Recomputes the statistics in {@code docProps/app.xml} from the presentation.
+     *
+     * <p>That part is what a document management system, a search indexer and the
+     * Explorer properties pane read without opening the file. It used to be
+     * carried over from whatever was loaded — the blank template, or the source
+     * document — so a three-slide deck advertised whatever slide count its
+     * template had, typically zero.</p>
+     *
+     * <p>Counted here: slides and hidden slides from the slide collection, notes
+     * from the slides that have a notes part, paragraphs as {@code <a:p>}
+     * elements and words as whitespace-separated runs of {@code <a:t>} text,
+     * across the slide parts and their notes. The headings and part titles are
+     * left as they were read: they name things this method does not derive.</p>
+     */
+    private void updateExtendedProperties() {
+        int slideCount = 0;
+        int hiddenCount = 0;
+        int notesCount = 0;
+        int paragraphCount = 0;
+        int wordCount = 0;
+
+        for (Slide slide : slides.getInternalList()) {
+            slideCount++;
+            if (slide.isHidden()) {
+                hiddenCount++;
+            }
+            String slidePartUri = slide.getSlidePartUri();
+            if (slidePartUri != null && pkg.hasPart(slidePartUri)) {
+                paragraphCount += countParagraphs(slidePartUri);
+                wordCount += countWords(slidePartUri);
+            }
+            String notesPartUri = notesPartUriOf(slidePartUri);
+            if (notesPartUri != null && pkg.hasPart(notesPartUri)) {
+                notesCount++;
+                paragraphCount += countParagraphs(notesPartUri);
+                wordCount += countWords(notesPartUri);
+            }
+        }
+
+        documentProperties.updateStatistics(
+                slideCount, hiddenCount, notesCount, paragraphCount, wordCount);
+    }
+
+    /** Returns the notes part related to a slide part, or {@code null} if it has none. */
+    private String notesPartUriOf(String slidePartUri) {
+        if (slidePartUri == null) {
+            return null;
+        }
+        var rels = new RelsHelper(pkg, slidePartUri);
+        for (var rel : rels.getAllRelationships()) {
+            if (rel.type().endsWith("/notesSlide")) {
+                return org.aspose.slides.foss.internal.pptx.CommentsPart
+                        .resolveTarget(slidePartUri, rel.target());
+            }
+        }
+        return null;
+    }
+
+    private int countParagraphs(String partUri) {
+        Document doc = pkg.parseXml(partUri);
+        return doc == null ? 0 : doc.getElementsByTagNameNS(NS_A, "p").getLength();
+    }
+
+    private int countWords(String partUri) {
+        Document doc = pkg.parseXml(partUri);
+        if (doc == null) {
+            return 0;
+        }
+        int words = 0;
+        NodeList texts = doc.getElementsByTagNameNS(NS_A, "t");
+        for (int i = 0; i < texts.getLength(); i++) {
+            String text = texts.item(i).getTextContent();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            words += text.trim().split("\s+").length;
+        }
+        return words;
     }
 
     /**

@@ -28,7 +28,7 @@ try (Presentation prs = new Presentation()) {
 ## Features
 
 - **Presentation I/O** — Open, create, and save `.pptx` files with full round-trip fidelity
-- **Slides** — Add, remove, clone, reorder, and iterate slides
+- **Slides** — Add, remove, clone, and iterate slides
 - **Shapes** — AutoShapes, PictureFrames, Tables, Connectors
 - **Text** — TextFrame, Paragraph, Portion with character, paragraph, and text frame formatting (including bullets)
 - **Fill** — Solid, gradient, pattern, and picture fills
@@ -189,8 +189,22 @@ The following areas are not implemented:
 - VBA macros, digital signatures
 - Hyperlinks and action settings
 
+**Writable formats are `SaveFormat.PPTX`, `SaveFormat.PPSX` and `SaveFormat.POTX`.** Every
+other `SaveFormat` value — including the macro-enabled `PPTM`, `POTM` and `PPSM`, whose
+content types declare a VBA project this library does not write — raises
+`UnsupportedOperationException` naming the formats that can be written. Nothing is created
+when it does.
+
+**Give the file the extension its format uses.** `save("deck.pptx", SaveFormat.POTX)` writes
+a correct template, and PowerPoint refuses to open it: the content type says template and the
+name says presentation, and PowerPoint trusts neither over the other. A template is `.potx`,
+a slideshow is `.ppsx`, a presentation is `.pptx`.
+
 Unknown XML parts encountered during load are preserved verbatim on save —
 opening and re-saving a file will never strip content this library does not understand.
+
+Changes between releases, including behaviour changes and removed API, are in
+[CHANGELOG.md](CHANGELOG.md).
 
 ---
 

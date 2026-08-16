@@ -22,7 +22,8 @@ the ZIP — but a slide part is not a slide. A reader finds slides by walking `<
 PowerPoint, to Apache POI and to everything else, and counting parts made a deck that had silently
 lost two of three slides look complete.
 
-So: object-model tests are welcome and there are 3,306 of them, but they cannot close a writer bug.
+So: object-model tests are welcome and `src/test/java` holds 3,308 of them, but they cannot close a
+writer bug.
 Put the assertion in `tests/conformance/`, where it unzips the file and reads the XML.
 [`tests/conformance/README.md`](tests/conformance/README.md) describes the harness in full.
 
@@ -76,21 +77,34 @@ Three suites run, and all three must be green:
 
 | Source root | Tests | What it covers |
 |---|---|---|
-| `src/test/java` | 3,306 | unit tests of the object model |
+| `src/test/java` | 3,308 | unit tests of the object model, and the check that the other two roots below are on the test classpath at all |
 | `tests/integration` | 98 | end-to-end use of the public API |
 | `tests/conformance` | 232 | assertions against the produced `.pptx` package |
 
 `tests/integration` and `tests/conformance` are outside `src/test/java` and are added as test source
 roots by `build-helper-maven-plugin` in `pom.xml`. A new directory there needs a line in that
-plugin's configuration or it is silently never compiled.
+plugin's configuration or it is silently never compiled — not an error, just a suite that quietly
+stops existing while the build still says success.
+
+`TestSourceRootsTest` in `src/test/java` is what stops that. It walks every `.java` file under
+`tests/`, works out the class each one declares, and fails if that class is not on the test
+classpath, naming all of them. It lives in `src/test/java` because that is the one root Maven
+compiles without being told, so it cannot vanish along with the roots it checks.
 
 Run a subset with surefire's `-Dtest`:
 
 ```bash
 mvn test -Dtest='*ConformanceTest,HarnessCalibrationTest'   # the conformance suite
 mvn test -Dtest=SaveFormatConformanceTest                   # one class
-mvn test -Dtest='SaveFormatConformanceTest#*Potx*'          # one method pattern
+mvn test -Dtest='SaveFormatConformanceTest#*Differ*'        # one method pattern
 ```
+
+**A method pattern that matches nothing is reported as success.** Surefire's
+`failIfNoSpecifiedTests` guard fires when no *class* matches, so a pattern like
+`SaveFormatConformanceTest#*Potx*` — the class exists, no method name contains `Potx` — prints
+`Tests run: 0` and `BUILD SUCCESS`. The pattern is matched against method names and not against the
+`@ParameterizedTest` display names that appear in the report, so a parameter value is not something
+you can select on this way. Read the `Tests run:` count before believing a green subset run.
 
 Run the whole suite before you push, rather than only the class you touched. Naming classes one at a
 time means a suite added later is silently never run.

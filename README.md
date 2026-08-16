@@ -43,6 +43,11 @@ Gradle:
 implementation 'org.aspose:aspose-slides-foss:26.7.0'
 ```
 
+**Before you depend on `26.7.0`, read this.** It predates the XML hardening described under
+*Security* in [CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md) lists it as not
+supported for that reason. If your program opens `.pptx` files that come from somewhere you do not
+control, [build from source](#building-from-source) rather than depending on `26.7.0`.
+
 `26.7.0`, published 2026-07-27, is the only version on Maven Central today —
 `repo1.maven.org/maven2/org/aspose/aspose-slides-foss/maven-metadata.xml` lists it as both
 `<latest>` and `<release>`. **This source tree is `26.8.0` and is not published yet**, and the
@@ -387,7 +392,7 @@ mvn verify -Dgpg.skip=true
 ```
 
 JDK 21 or later and Maven 3.9 or later are required; the build refuses to start otherwise. That one
-command runs the whole test suite — **3,636 tests**, of which **232 are conformance tests** that
+command runs the whole test suite — **3,638 tests**, of which **232 are conformance tests** that
 unzip the produced `.pptx` and assert on the package — and builds the jar, the sources jar, the
 javadoc jar and a CycloneDX SBOM into `target/`. `-Dgpg.skip=true` skips artifact signing, which is
 part of `verify` and needs the release key.

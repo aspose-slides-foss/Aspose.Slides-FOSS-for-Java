@@ -4,6 +4,12 @@ All notable changes to this library are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions are the published Maven
 coordinates `org.aspose:aspose-slides-foss`.
 
+## Unreleased
+
+Nothing yet. A change a caller can observe goes here, under a `### Added`, `### Changed`,
+`### Fixed`, `### Removed` or `### Security` heading, and the section is renamed to the version and
+dated when that version is released.
+
 ## [26.8.0] - 2026-08-16
 
 `26.7.0` is still the version on Maven Central as this is written; `26.8.0` is the version in the
@@ -58,6 +64,11 @@ Each is described in full below. A `.pptx` written by `26.7.0` still loads.
 - **`PptException`, `PptReadException` and `PptCorruptFileException` declare a
   `serialVersionUID`.** Each is the value the compiler was already computing, so instances
   serialized by an earlier release still deserialize.
+- **The test suites outside `src/test/java` are checked to be on the test classpath at all.** The
+  integration and conformance suites live outside Maven's default test root and are added by
+  `build-helper-maven-plugin`; a root missing from that configuration compiles nothing, runs
+  nothing and reports success. A test in `src/test/java` — the one root that cannot itself go
+  missing — now fails the build and names every class that was not compiled.
 - **Every push and pull request builds and runs the whole test suite** on Linux, Windows and macOS,
   on Java 21 and Java 25, and a separate job checks that two builds of the same source produce
   identical jars. Before this, nothing ran the tests outside a release.

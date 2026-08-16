@@ -26,6 +26,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Manages relationships ({@code .rels}) files in an OPC package.
@@ -157,7 +158,7 @@ public final class RelationshipsManager {
         Optional<byte[]> content = opcPackage.getPart(relsPartName);
         if (content.isPresent()) {
             try {
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilderFactory factory = SecureXml.documentBuilderFactory();
                 factory.setNamespaceAware(true);
                 DocumentBuilder builder = factory.newDocumentBuilder();
                 document = builder.parse(new ByteArrayInputStream(content.get()));
@@ -169,7 +170,7 @@ public final class RelationshipsManager {
             }
         } else {
             try {
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilderFactory factory = SecureXml.documentBuilderFactory();
                 factory.setNamespaceAware(true);
                 DocumentBuilder builder = factory.newDocumentBuilder();
                 document = builder.newDocument();
@@ -327,7 +328,7 @@ public final class RelationshipsManager {
         }
 
         try {
-            TransformerFactory tf = TransformerFactory.newInstance();
+            TransformerFactory tf = SecureXml.transformerFactory();
             Transformer transformer = tf.newTransformer();
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");

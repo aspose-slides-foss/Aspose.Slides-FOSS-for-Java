@@ -5,11 +5,11 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Represents paragraph formatting properties.
@@ -109,7 +109,7 @@ public final class ParagraphFormat extends PVIObject implements IParagraphFormat
      */
     public ParagraphFormat() {
         try {
-            Document doc = DocumentBuilderFactory.newInstance()
+            Document doc = SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
             this.pElement = doc.createElementNS(NS_A, "a:p");

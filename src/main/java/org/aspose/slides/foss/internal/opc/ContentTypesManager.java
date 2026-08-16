@@ -4,11 +4,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
@@ -17,6 +15,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Manages the {@code [Content_Types].xml} file in an OPC package.
@@ -222,7 +221,7 @@ public final class ContentTypesManager {
 
     private static Document newDocument() {
         try {
-            var factory = DocumentBuilderFactory.newInstance();
+            var factory = SecureXml.documentBuilderFactory();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder().newDocument();
         } catch (ParserConfigurationException e) {
@@ -232,7 +231,7 @@ public final class ContentTypesManager {
 
     private static Document parseXmlBytes(byte[] data) {
         try {
-            var factory = DocumentBuilderFactory.newInstance();
+            var factory = SecureXml.documentBuilderFactory();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder()
                     .parse(new ByteArrayInputStream(data));
@@ -243,7 +242,7 @@ public final class ContentTypesManager {
 
     private static byte[] serializeXml(Document doc) {
         try {
-            var transformer = TransformerFactory.newInstance().newTransformer();
+            var transformer = SecureXml.transformerFactory().newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");

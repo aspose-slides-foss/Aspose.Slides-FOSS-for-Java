@@ -4,9 +4,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.util.Map;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Contains the TextFrame's formatting properties.
@@ -137,7 +137,7 @@ public final class TextFrameFormat extends PVIObject implements ITextFrameFormat
      */
     public TextFrameFormat() {
         try {
-            Document doc = DocumentBuilderFactory.newInstance()
+            Document doc = SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
             this.txBodyElement = doc.createElementNS(NS_A, "a:txBody");

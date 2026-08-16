@@ -5,9 +5,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.util.Map;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Common text portion formatting properties.
@@ -108,7 +108,7 @@ public class BasePortionFormat implements IBasePortionFormat {
      */
     public BasePortionFormat() {
         try {
-            Document doc = DocumentBuilderFactory.newInstance()
+            Document doc = SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
             this.rprElement = doc.createElementNS(NS_A, "a:rPr");

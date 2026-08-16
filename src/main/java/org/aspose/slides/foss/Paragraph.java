@@ -4,8 +4,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Represents a text paragraph.
@@ -30,7 +30,7 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
      */
     public Paragraph() {
         try {
-            Document doc = DocumentBuilderFactory.newInstance()
+            Document doc = SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
             this.pElement = doc.createElementNS(NS_A, "a:p");

@@ -13,9 +13,10 @@ import java.util.zip.ZipOutputStream;
 /**
  * Copies a package with a deliberate edit, for calibrating the package rules.
  *
- * <p>Used only by {@link HarnessCalibrationTest}: a rule that has never been shown to fail is
+ * <p>Used by {@link HarnessCalibrationTest}, because a rule that has never been shown to fail is
  * not evidence of anything, so each rule is pointed at a package damaged in exactly the way it
- * claims to detect.</p>
+ * claims to detect — and by {@link UntrustedInputConformanceTest}, which needs a package no
+ * supported API can write.</p>
  */
 final class ZipSurgery {
 

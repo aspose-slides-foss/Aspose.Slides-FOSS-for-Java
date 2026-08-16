@@ -2,9 +2,7 @@ package org.aspose.slides.foss.internal.pptx;
 
 import org.w3c.dom.Document;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
@@ -16,6 +14,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Minimal OPC (Open Packaging Conventions) package backed by a ZIP archive.
@@ -169,7 +168,7 @@ public final class OpcPackage {
         byte[] data = parts.get(uri);
         if (data == null) return null;
         try {
-            var factory = DocumentBuilderFactory.newInstance();
+            var factory = SecureXml.documentBuilderFactory();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder()
                     .parse(new ByteArrayInputStream(data));
@@ -191,7 +190,7 @@ public final class OpcPackage {
         // count of zero after being cleared.
         Document toWrite = TextBodies.withParagraphs(doc);
         try {
-            var transformer = TransformerFactory.newInstance().newTransformer();
+            var transformer = SecureXml.transformerFactory().newTransformer();
             // Never re-indent. The parser keeps the whitespace text nodes of the
             // document it read, so indenting on output adds a fresh layer of them
             // to what is already indented: opening a file and saving it unchanged
@@ -215,7 +214,7 @@ public final class OpcPackage {
      */
     public static Document newDocument() {
         try {
-            return DocumentBuilderFactory.newInstance()
+            return SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
         } catch (javax.xml.parsers.ParserConfigurationException e) {

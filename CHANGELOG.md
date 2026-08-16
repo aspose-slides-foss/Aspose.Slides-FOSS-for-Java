@@ -5,6 +5,28 @@ Maven coordinates `org.aspose:aspose-slides-foss`.
 
 ## Unreleased
 
+### Build and packaging
+
+- **The published jar declares `Automatic-Module-Name: org.aspose.slides.foss`**, so it can be
+  put on the module path under a stable name, and carries `Implementation-Title`,
+  `-Version` and `-Vendor` in its manifest along with a copy of the licence at
+  `META-INF/LICENSE`.
+- **Builds are reproducible.** Two builds of the same source now produce byte-identical
+  archives; the build date is fixed by `project.build.outputTimestamp` in `pom.xml` rather
+  than taken from the clock.
+- **A CycloneDX SBOM is produced** at `target/aspose-slides-foss-<version>-cyclonedx.json`.
+  It lists no components, which is the correct answer: the library has no runtime
+  dependencies.
+- **Java 21 is enforced rather than assumed.** The build fails on a JDK older than 21 with a
+  readable message, and compiles with `release` rather than `source`/`target`, so a build on
+  a newer JDK cannot produce a jar that quietly needs it.
+- **Compiler warnings fail the build** (`-Xlint:all` minus `try`, which would require an API
+  change to satisfy), and a javadoc error fails the build instead of producing a javadoc jar
+  with pages missing.
+- **`PptException`, `PptReadException` and `PptCorruptFileException` declare a
+  `serialVersionUID`.** Each is the value the compiler was already computing, so instances
+  serialized by an earlier release still deserialize.
+
 ### Removed
 
 - **`public static void Picture.flushPendingBlipImages(Element, IBaseSlide)`.** Binary

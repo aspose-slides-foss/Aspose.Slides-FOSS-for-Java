@@ -6,6 +6,12 @@ package org.aspose.slides.foss;
 public final class PptCorruptFileException extends PptReadException {
 
     /**
+     * The value the compiler computed for this class before it was declared, so that an
+     * instance serialized by an earlier build still deserializes here.
+     */
+    private static final long serialVersionUID = -9139983423536833693L;
+
+    /**
      * Creates a new {@code PptCorruptFileException} with no detail message.
      */
     public PptCorruptFileException() {

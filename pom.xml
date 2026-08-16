@@ -13,6 +13,11 @@
     <description>Open-source Java library for creating, reading, and editing PowerPoint (.pptx) presentations.</description>
     <url>https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java</url>
 
+    <organization>
+        <name>Aspose Pty Ltd</name>
+        <url>https://www.aspose.com/</url>
+    </organization>
+
     <licenses>
         <license>
             <name>MIT License</name>
@@ -41,9 +46,29 @@
     </issueManagement>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <!--
+            Java 21 is a hard floor, not a preference: the sources call the SequencedCollection
+            methods List.getFirst() and List.removeLast() (Java 21) and use an unconditional
+            pattern in instanceof (Java 21). Compiling with release 17 fails. `release` is used
+            rather than source/target because only `release` also restricts the JDK API the code
+            may call, so a build on a newer JDK cannot silently produce a jar that needs it.
+        -->
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!--
+            Reproducible builds: fixes every timestamp Maven writes into the archives, so the
+            same source tree produces byte-identical jars on any machine. Bump this to the
+            release date whenever the version is bumped.
+        -->
+        <project.build.outputTimestamp>2026-08-16T00:00:00Z</project.build.outputTimestamp>
+        <!--
+            Warnings are build failures. Overridable from the command line, and the build on a
+            JDK newer than the reference one overrides it: -Xlint:all is open-ended, a later
+            javac can add a category, and a tree that was clean yesterday would then fail today
+            for a reason that has nothing to do with the change under test. The warnings are
+            still printed there.
+        -->
+        <maven.compiler.failOnWarning>true</maven.compiler.failOnWarning>
     </properties>
 
     <dependencies>
@@ -85,7 +110,66 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- The licence travels inside the jar, so a consumer who has only the binary
+                 still has the terms it is offered under. -->
+            <resource>
+                <directory>${project.basedir}</directory>
+                <targetPath>META-INF</targetPath>
+                <includes>
+                    <include>LICENSE</include>
+                </includes>
+            </resource>
+        </resources>
+
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>enforce-build-environment</id>
+                        <goals><goal>enforce</goal></goals>
+                        <configuration>
+                            <rules>
+                                <!-- Building below 21 cannot work; fail with a readable message
+                                     instead of a page of "cannot find symbol". -->
+                                <requireJavaVersion><version>[21,)</version></requireJavaVersion>
+                                <requireMavenVersion><version>[3.9.0,)</version></requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <failOnWarning>${maven.compiler.failOnWarning}</failOnWarning>
+                    <compilerArgs>
+                        <!--
+                            The tree compiles clean under this set, main sources and tests
+                            alike, so any new warning is a regression and is treated as one. If
+                            a warning ever has to be allowed, suppress it at the declaration
+                            with a comment saying why - do not weaken this flag.
+
+                            `try` is the one category left off. IImage and IPresentation extend
+                            AutoCloseable without narrowing its `close() throws Exception`, so
+                            javac warns at every use in try-with-resources. Narrowing the
+                            declaration is the fix, and it changes published API: it belongs in
+                            a release with a note, not in a build configuration change. The
+                            implementations - Image, Presentation, OpcPackage - already declare
+                            close() with no checked exception.
+                        -->
+                        <arg>-Xlint:all,-try</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
@@ -113,6 +197,51 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.1</version>
+                <configuration>
+                    <archive>
+                        <!-- Implementation-Title / -Version / -Vendor, so code holding only
+                             the jar can report which build it is running. -->
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <!-- Lets the jar be used on the module path under a stable name
+                                 before a module-info.java exists. Once published it cannot
+                                 change without breaking module-path consumers. -->
+                            <Automatic-Module-Name>org.aspose.slides.foss</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>2.9.3</version>
+                <executions>
+                    <execution>
+                        <id>build-sbom</id>
+                        <phase>package</phase>
+                        <goals><goal>makeBom</goal></goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <projectType>library</projectType>
+                    <outputFormat>json</outputFormat>
+                    <outputName>${project.artifactId}-${project.version}-cyclonedx</outputName>
+                    <!-- Test-scope dependencies are excluded on purpose: the SBOM describes what
+                         a consumer of the published jar actually gets, and JUnit, AssertJ and
+                         Apache POI are not part of that. -->
+                    <includeTestScope>false</includeTestScope>
+                    <!-- Written to target/ for CI to publish, but not attached as a Maven
+                         artifact: the release checks and the GPG signing step expect an exact
+                         artifact set. -->
+                    <skipAttach>true</skipAttach>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
                 <version>3.4.0</version>
                 <executions>
@@ -127,7 +256,18 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.12.0</version>
                 <configuration>
-                    <failOnError>false</failOnError>
+                    <!--
+                        failOnError is left at its default of true. It was false, which meant a
+                        malformed javadoc comment produced a javadoc jar with pages missing and
+                        a green build. The tree currently generates with no javadoc errors.
+
+                        doclint runs everything except `missing`: broken HTML, an unclosed tag or
+                        a reference to something that does not exist is an error and fails the
+                        build, while an undocumented @param or @return stays a warning. There are
+                        about a hundred of those and failing on them would only invite someone to
+                        turn the check off again.
+                    -->
+                    <doclint>all,-missing</doclint>
                     <outputDirectory>${project.build.directory}/apidocs</outputDirectory>
                 </configuration>
                 <executions>
@@ -161,7 +301,13 @@
                 <configuration>
                     <publishingServerId>central</publishingServerId>
                     <autoPublish>true</autoPublish>
-                    <waitUntil>validated</waitUntil>
+                    <!--
+                        `validated` only waits for the Portal to accept the upload; publication
+                        happens afterwards and a failure there is never seen by the build. With
+                        `published` the deploy goal blocks until the Portal reports the version
+                        published, so a release that does not publish fails the release job.
+                    -->
+                    <waitUntil>published</waitUntil>
                 </configuration>
             </plugin>
         </plugins>

@@ -4,6 +4,34 @@ The official open-source Java library by Aspose.Slides for creating, reading, an
 
 ---
 
+## Installation
+
+Maven:
+
+```xml
+<dependency>
+    <groupId>org.aspose</groupId>
+    <artifactId>aspose-slides-foss</artifactId>
+    <version>26.7.0</version>
+</dependency>
+```
+
+Gradle:
+
+```groovy
+implementation 'org.aspose:aspose-slides-foss:26.7.0'
+```
+
+**Java 21 or later.** The library uses Java 21 language and library features and will not run on an
+older runtime. It has no runtime dependencies of its own: adding it adds one jar and nothing else.
+
+Searching for the library on `search.maven.org` finds nothing, and that is a limitation of that
+search index rather than of the release — the artifact is on Maven Central and resolves normally.
+[central.sonatype.com](https://central.sonatype.com/artifact/org.aspose/aspose-slides-foss) lists
+it; [PUBLISHING.md](PUBLISHING.md) explains why the other one does not.
+
+---
+
 ## Quick Start
 
 ```java
@@ -208,9 +236,30 @@ Changes between releases, including behaviour changes and removed API, are in
 
 ---
 
+## Building from source
+
+```
+mvn verify -Dgpg.skip=true
+```
+
+JDK 21 or later and Maven 3.9 or later are required; the build refuses to start otherwise. That
+command runs the whole test suite — unit tests, integration tests, and conformance tests that
+unzip the produced `.pptx` and assert on the package — and builds the jar, the sources jar, the
+javadoc jar and a CycloneDX SBOM into `target/`. `-Dgpg.skip=true` skips artifact signing, which
+is part of `verify` and needs the release key.
+
+Compiler warnings fail the build. Two builds of the same source produce byte-identical jars.
+
+Every push and every pull request runs that build on Linux, Windows and macOS, on Java 21 and
+Java 25 (`.github/workflows/build.yml`), and the jar, sources jar, javadoc jar and SBOM from each
+run can be downloaded from the run's page.
+
+---
+
 ## Links
 
 - [GitHub Repository](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java)
+- [The library on Maven Central](https://central.sonatype.com/artifact/org.aspose/aspose-slides-foss)
 - [Issue Tracker](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java/issues)
 
 ---

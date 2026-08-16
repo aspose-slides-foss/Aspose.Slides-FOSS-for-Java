@@ -1,9 +1,15 @@
 name: Build and test
 
-# The release workflow builds with -DskipTests, because its job is to publish an
-# artifact and not to judge one. Nothing else ran the test suite, so a change could
-# reach a published release without a single test having been executed. This runs it
-# on every push and every pull request.
+# Builds the library and runs the whole test suite - unit, integration and conformance -
+# on every push and every pull request, on each operating system and each Java version
+# the project supports. Nothing else runs these tests: the release workflow builds from
+# a tag, and a tag is not a place to discover that the code is broken.
+#
+# Actions are pinned to a commit SHA rather than to a tag. A tag is a movable pointer -
+# whoever controls the action repository can repoint v4 at different code, and every
+# workflow that references it starts running that code without a single change here. A
+# commit SHA cannot be repointed. The tag each SHA carried when it was pinned is in the
+# comment beside it; to upgrade, resolve the new tag to its SHA and replace both.
 
 on:
   push:
@@ -14,31 +20,104 @@ on:
 permissions:
   contents: read
 
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: mvn verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    name: Java ${{ matrix.java }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One failing combination must not hide the result of the other five.
+      fail-fast: false
+      matrix:
+        # The library writes ZIP packages and XML, and reads files from disk, so the
+        # platform differences that matter here - path separators, line endings, default
+        # charset, file locking - are worth a run each.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 21 is the floor the sources actually need: they call List.getFirst() and
+        # List.removeLast() and use an unconditional instanceof pattern, none of which
+        # compiles under release 17. 25 is the next long-term-support release, and is
+        # here so that "Java 21 or later" is a tested claim rather than a hope.
+        java: ['21', '25']
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # `verify` and not `test`: it also builds the jar, the sources jar, the javadoc jar
+      # and the SBOM, so a javadoc error or a packaging error is found here rather than
+      # during a release. Signing is skipped - there is no key on this runner, and none
+      # is needed to judge the code.
+      #
+      # Warnings are errors on Java 21, the version the project is developed against;
+      # see the POM for why they are not on the others.
+      - name: Build, test and package
+        run: >
+          mvn -B --no-transfer-progress clean verify
+          -Dgpg.skip=true
+          -Dmaven.compiler.failOnWarning=${{ matrix.java == '21' }}
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-reports-${{ matrix.os }}-java-${{ matrix.java }}
+          path: target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+      # The exact bytes CI produced, so a reviewer can open the jar that was tested
+      # instead of building their own and hoping it matches.
+      - name: Upload the built package and its SBOM
+        if: matrix.os == 'ubuntu-latest' && matrix.java == '21'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-and-sbom
+          path: |
+            target/*.jar
+            target/*-cyclonedx.json
+          if-no-files-found: error
+          retention-days: 14
+
+  reproducible:
+    name: Build is reproducible
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
 
-      # Runs the tests, and builds the jar, sources and javadoc the release also
-      # builds, so a javadoc error is caught here rather than at publish time.
-      # Signing is skipped: there is no key here and none is needed to test.
-      - name: Build and test
-        run: mvn -B clean verify -Dgpg.skip=true
-
-      - name: Publish test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-reports
-          path: target/surefire-reports/
-          if-no-files-found: warn
-          retention-days: 7
+      # The POM sets project.build.outputTimestamp, which is what makes two builds of the
+      # same source produce byte-identical archives. A setting nobody checks stops being
+      # true, so this checks it: build, hash, build again, compare.
+      - name: Build twice and compare the archives
+        run: |
+          set -euo pipefail
+          mvn -B --no-transfer-progress clean package -DskipTests -Dgpg.skip=true
+          sha256sum target/*.jar | sed 's#target/##' > /tmp/first.sha256
+          mvn -B --no-transfer-progress clean package -DskipTests -Dgpg.skip=true
+          sha256sum target/*.jar | sed 's#target/##' > /tmp/second.sha256
+          cat /tmp/first.sha256
+          if ! diff -u /tmp/first.sha256 /tmp/second.sha256; then
+            echo "::error::two builds of the same source produced different archives"
+            exit 1
+          fi
+          echo "Both builds produced identical archives."

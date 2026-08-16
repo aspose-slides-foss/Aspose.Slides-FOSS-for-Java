@@ -1,0 +1,110 @@
+name: Bug report
+description: Something this library does is wrong, or the .pptx it writes is wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. The single most useful thing you can give us is a **minimal
+        program that reproduces it** — twenty lines that write a file we can open ourselves.
+
+        If this is a security issue, do not file it here. See
+        [SECURITY.md](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java/blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      description: >
+        There are four editions of this library and they differ — the README's "Choosing an
+        edition" table says how. This repository is the Java one; pick another only if you are
+        certain the report belongs here anyway.
+      options:
+        - Java (this repository)
+        - .NET
+        - C++
+        - Python
+        - More than one edition
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >
+        The Maven version you resolved, or the commit SHA you built. `git rev-parse HEAD` prints
+        the SHA; `mvn -q -DforceStdout help:evaluate -Dexpression=project.version` prints the
+        version of a source tree.
+      placeholder: "e.g. 26.7.0, or 61a68b0"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: JDK and operating system
+      description: The first line of `java -version`, plus the OS.
+      placeholder: "e.g. Temurin 21.0.10 on Ubuntu 24.04 x64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        A complete class we can compile and run. Include the input file if one is needed — attach
+        it, or say how to produce it. Please reduce it as far as it will go, and note that
+        `save` and `new Presentation(String)` throw `IOException`.
+      render: java
+      placeholder: |
+        import org.aspose.slides.foss.*;
+        import org.aspose.slides.foss.export.SaveFormat;
+
+        public class Repro {
+            public static void main(String[] args) throws Exception {
+                try (Presentation prs = new Presentation()) {
+                    // ...
+                    prs.save("out.pptx", SaveFormat.PPTX);
+                }
+            }
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: >
+        If the complaint is about the file rather than the API, say which part of the package and
+        which element — for example "ppt/slides/slide1.xml should contain an `<a:blip r:embed>`
+        whose id resolves in ppt/slides/_rels/slide1.xml.rels".
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: >
+        The exception and stack trace, or the XML that was written, or what the application that
+        opened the file did. `unzip -p out.pptx ppt/slides/slide1.xml` is usually the quickest way
+        to show the last of those. Paste text rather than a screenshot where you can.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: >
+            I read the README's "Limitations" section, and this is not one of the capabilities
+            documented as absent, nor one of the save formats documented as refused.
+          required: true
+        - label: >
+            I reproduced this against the current default branch, not only against the version on
+            Maven Central. (The published version is older than this repository — see the README.)
+          required: false

@@ -69,12 +69,18 @@ class ResaveConformanceTest {
     }
 
     /**
-     * Opening a deck this library did not write and saving it must lose no part of it.
+     * Opening a deck this library did not write and saving it must carry every part across
+     * and invent none.
      *
      * <p>A part that is silently dropped is invisible in everything but the file: the deck
      * still opens, and the chart, the embedded workbook or the theme that went missing is
      * only noticed by whoever needed it. Asserted by name and not by count, so a part
      * dropped and another added cannot cancel out.</p>
+     *
+     * <p>The other direction is asserted too. A part appearing that the source did not have
+     * means the writer substituted something of its own - a synthetic master, a default
+     * theme - for what was in the file, and the deck that comes back is then not the deck
+     * that went in even though nothing was lost.</p>
      */
     @Test
     void openingAndSavingADeckMustLoseNoPartOfIt() throws Exception {
@@ -92,6 +98,14 @@ class ResaveConformanceTest {
             assertThat(lost)
                     .as("parts of %s that did not survive being saved to %s; the file had %d "
                             + "parts and now has %d", source, out,
+                            before.entryNames().size(), after.entryNames().size())
+                    .isEmpty();
+
+            var added = new ArrayList<>(after.entryNames());
+            added.removeAll(before.entryNames());
+            assertThat(added)
+                    .as("parts in %s that %s did not have; the file had %d parts and now has %d",
+                            out, source,
                             before.entryNames().size(), after.entryNames().size())
                     .isEmpty();
         }

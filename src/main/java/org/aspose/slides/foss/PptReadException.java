@@ -6,6 +6,12 @@ package org.aspose.slides.foss;
 public class PptReadException extends PptException {
 
     /**
+     * The value the compiler computed for this class before it was declared, so that an
+     * instance serialized by an earlier build still deserializes here.
+     */
+    private static final long serialVersionUID = 2666054243868649730L;
+
+    /**
      * Creates a new {@code PptReadException} with no detail message.
      */
     public PptReadException() {

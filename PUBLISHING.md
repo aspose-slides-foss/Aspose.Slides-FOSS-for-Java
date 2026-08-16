@@ -38,7 +38,7 @@ In order, each step able to fail the whole release:
 | Build, test, sign and deploy | any test fails, javadoc has an error, a compiler warning appears, signing fails, or the Portal does not report the version published |
 | Verify the six artifacts | the jar, sources jar, javadoc jar or one of the three signatures is missing |
 | Verify the working tree is clean | the build modified or created a tracked-looking file |
-| Wait until the files are downloadable | `repo1.maven.org` is still not serving the pom, jar, sources jar, javadoc jar or signature after 28 minutes |
+| Wait until the files are downloadable | `repo1.maven.org` is still not serving the pom, jar, sources jar, javadoc jar or signature after about 28 minutes — 20 checks of all five files, 90 seconds apart |
 | Create the GitHub Release | the release cannot be created |
 
 Two properties of that list are deliberate and worth keeping:

@@ -125,6 +125,23 @@
             </resource>
         </resources>
 
+        <pluginManagement>
+            <plugins>
+                <!-- Not bound to the lifecycle: this pins the version for `mvn help:evaluate`,
+                     which the release workflow calls to read the coordinates out of this file
+                     before it publishes anything. Without a version here Maven resolves the
+                     newest release from the network at run time, so the guard that decides
+                     whether a release may proceed would be running code chosen by whatever was
+                     published that morning. Every GitHub action in that workflow is pinned to a
+                     commit for the same reason. -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-help-plugin</artifactId>
+                    <version>3.5.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

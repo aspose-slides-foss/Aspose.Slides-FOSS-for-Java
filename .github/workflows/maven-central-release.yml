@@ -252,30 +252,42 @@ jobs:
       # decides whether the release succeeded, so it must not be downgraded to a warning.
       #
       # All five files are checked in every round rather than one file to completion and
-      # then the next, so the total wait is 30 minutes and not 30 per file. Waiting per
-      # file could outlast the job timeout, which would end the run with "cancelled"
-      # instead of the message below saying what was missing.
+      # then the next, so the wait is bounded once for the whole set instead of once per
+      # file. Waiting per file could outlast the job timeout, which would end the run with
+      # "cancelled" instead of the message below saying what was missing.
+      #
+      # ROUNDS checks INTERVAL seconds apart put the last check (ROUNDS - 1) * INTERVAL
+      # seconds in - 28 minutes as set here, comfortably inside timeout-minutes. Every
+      # message computes its figure from those two variables rather than repeating it, so
+      # the loop and what it says about itself cannot drift apart.
       - name: Wait until the files are downloadable from Maven Central
         timeout-minutes: 35
         run: |
           set -euo pipefail
+          ROUNDS=20
+          INTERVAL=90
           SUFFIXES=".pom .jar -sources.jar -javadoc.jar .jar.asc"
-          for i in $(seq 1 20); do
+          for i in $(seq 1 "$ROUNDS"); do
             MISSING=""
             for SUFFIX in $SUFFIXES; do
               URL="${{ steps.coordinates.outputs.base }}${SUFFIX}"
-              STATUS="$(curl -sS --max-time 60 -o /dev/null -w '%{http_code}' "$URL" || echo "000")"
+              # curl writes the status code through -w even when the request never got a
+              # reply, and writes 000 in that case, so its own output is already the
+              # answer. `|| true` keeps that non-zero exit from ending the step; a second
+              # "000" appended here would print the nonsense "HTTP 000000" below.
+              STATUS="$(curl -sS --max-time 60 -o /dev/null -w '%{http_code}' "$URL" || true)"
+              [ -n "$STATUS" ] || STATUS="000"
               [ "$STATUS" = "200" ] || MISSING="${MISSING} ${SUFFIX}(HTTP ${STATUS})"
             done
             if [ -z "$MISSING" ]; then
-              echo "All five files are downloadable from Maven Central after $(( (i - 1) * 90 / 60 )) minutes:"
+              echo "All five files are downloadable from Maven Central after $(( (i - 1) * INTERVAL / 60 )) minutes:"
               for SUFFIX in $SUFFIXES; do echo "  ${{ steps.coordinates.outputs.base }}${SUFFIX}"; done
               exit 0
             fi
-            echo "round ${i}/20 - still missing:${MISSING}"
-            if [ "$i" -lt 20 ]; then sleep 90; fi
+            echo "round ${i}/${ROUNDS} - still missing:${MISSING}"
+            if [ "$i" -lt "$ROUNDS" ]; then sleep "$INTERVAL"; fi
           done
-          echo "::error::after 30 minutes Maven Central is still not serving:${MISSING}"
+          echo "::error::after $(( (ROUNDS - 1) * INTERVAL / 60 )) minutes Maven Central is still not serving:${MISSING}"
           echo "::error::the release did not land on Maven Central"
           exit 1
 

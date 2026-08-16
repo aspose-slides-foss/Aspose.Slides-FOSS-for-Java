@@ -62,7 +62,18 @@ jobs:
       #
       # Warnings are errors on Java 21, the version the project is developed against;
       # see the POM for why they are not on the others.
+      #
+      # `shell: bash` is load-bearing, not a preference. The default shell on the Windows
+      # runners is PowerShell, which splits an unquoted native argument at the first `.`
+      # that follows a `-word`: `-Dgpg.skip=true` reaches Maven as the two arguments
+      # `-Dgpg` and `.skip=true`, and Maven then stops with "Unknown lifecycle phase
+      # '.skip=true'" before it compiles anything. Both Windows jobs failed that way while
+      # all four Linux and macOS jobs passed, and because the failure is in argument
+      # parsing rather than in a test, there were no surefire reports to explain it.
+      # Naming bash - present on all three runner images - makes the three operating
+      # systems run one identical command, which is the only way the matrix compares them.
       - name: Build, test and package
+        shell: bash
         run: >
           mvn -B --no-transfer-progress clean verify
           -Dgpg.skip=true

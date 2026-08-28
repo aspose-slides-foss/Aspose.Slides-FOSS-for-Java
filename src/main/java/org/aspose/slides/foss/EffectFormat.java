@@ -115,6 +115,7 @@ public final class EffectFormat extends PVIObject implements IEffectFormat {
 
         Document doc = effectLst.getOwnerDocument();
         Element el = doc.createElementNS(NS_A, "a:" + localName);
+        applyRequiredDefaults(el);
 
         int newRank = EFFECT_LST_ORDER.indexOf(localName);
         if (newRank < 0) {
@@ -134,6 +135,56 @@ public final class EffectFormat extends PVIObject implements IEffectFormat {
         }
         effectLst.appendChild(el);
         return el;
+    }
+
+    /**
+     * Gives a newly created effect element the children and attributes ECMA-376 §20.1.8
+     * marks mandatory for it.
+     *
+     * <p>Without them the element is schema-incomplete and PowerPoint refuses the whole
+     * file rather than ignoring the effect: {@code CT_OuterShadowEffect} and
+     * {@code CT_InnerShadowEffect} require a colour, {@code CT_GlowEffect} requires a
+     * colour, {@code CT_PresetShadowEffect} requires {@code prst} and a colour,
+     * {@code CT_SoftEdgesEffect} requires {@code rad}, and {@code CT_FillOverlayEffect}
+     * requires {@code blend} and a fill. {@code a:blur} and {@code a:reflection} have no
+     * mandatory content and are left as they are.</p>
+     *
+     * <p>Applied only when the element is created, so it never overwrites what a caller
+     * has already set.</p>
+     *
+     * @param effect the newly created effect element
+     */
+    private static void applyRequiredDefaults(Element effect) {
+        Document doc = effect.getOwnerDocument();
+        switch (effect.getLocalName()) {
+            case "outerShdw", "innerShdw" -> effect.appendChild(defaultEffectColor(doc));
+            case "glow" -> {
+                effect.setAttribute("rad", "63500");
+                effect.appendChild(defaultEffectColor(doc));
+            }
+            case "prstShdw" -> {
+                effect.setAttribute("prst", "shdw1");
+                effect.appendChild(defaultEffectColor(doc));
+            }
+            case "softEdge" -> effect.setAttribute("rad", "63500");
+            case "fillOverlay" -> {
+                effect.setAttribute("blend", "over");
+                effect.appendChild(doc.createElementNS(NS_A, "a:noFill"));
+            }
+            default -> {
+                // blur and reflection carry no mandatory content
+            }
+        }
+    }
+
+    /** @return {@code <a:srgbClr val="000000"><a:alpha val="40000"/></a:srgbClr>} */
+    private static Element defaultEffectColor(Document doc) {
+        Element color = doc.createElementNS(NS_A, "a:srgbClr");
+        color.setAttribute("val", "000000");
+        Element alpha = doc.createElementNS(NS_A, "a:alpha");
+        alpha.setAttribute("val", "40000");
+        color.appendChild(alpha);
+        return color;
     }
 
     private void removeEffectChild(String localName) {

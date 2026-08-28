@@ -5,17 +5,20 @@ You are working with `aspose-slides-foss`, the official open-source Java library
 ## Build
 
 ```bash
-mvn compile    # compile
-mvn test       # run all tests
+mvn compile                  # compile
+mvn test                     # run all tests
+mvn verify -Dgpg.skip=true   # tests, plus the jar, sources, javadoc and SBOM
 ```
 
-Requires Java 21+. No runtime dependencies beyond the JDK.
+Requires JDK 21+ and Maven 3.9+. No runtime dependencies beyond the JDK. Compiler warnings fail the
+build. See CONTRIBUTING.md.
 
 ## Core Concepts
 
 - **`Presentation`** is the root object. It owns slides, masters, layouts, images, document properties, and comments.
 - Always use `Presentation` in a try-with-resources block to ensure proper cleanup.
-- Save with `prs.save("out.pptx", SaveFormat.PPTX)`. Only PPTX output is supported.
+- Save with `prs.save("out.pptx", SaveFormat.PPTX)`. `SaveFormat.PPSX` and `SaveFormat.POTX` are
+  also written; every other `SaveFormat` value raises `UnsupportedOperationException`.
 - Unknown XML parts are preserved verbatim on save — round-tripping is safe.
 
 ## Import Pattern
@@ -45,7 +48,8 @@ try (Presentation prs = new Presentation()) {
 ```java
 try (Presentation prs = new Presentation("input.pptx")) {
     for (ISlide slide : prs.getSlides()) {
-        for (IShape shape : slide.getShapes()) {
+        // ISlideCollection is Iterable; IShapeCollection is not - use asIEnumerable() or an index.
+        for (IShape shape : slide.getShapes().asIEnumerable()) {
             System.out.println(shape.getName());
         }
     }
@@ -196,7 +200,8 @@ src/main/java/org/aspose/slides/foss/
 ## Do
 
 - Always wrap `Presentation` in a try-with-resources block
-- Use `SaveFormat.PPTX` when saving — it is the only supported format
+- Use `SaveFormat.PPTX`, `PPSX` or `POTX` when saving — every other value raises, and the file
+  extension has to match the format you asked for
 - Use `Color.fromArgb(a, r, g, b)` or named constants like `Color.RED`, `Color.BLUE`
 - Access slides via `prs.getSlides().get(index)` — slides are 0-indexed
 - Use `NullableBool` enum (`NullableBool.FALSE`, `NullableBool.TRUE`, `NullableBool.NOT_DEFINED`) for boolean formatting properties like `setFontBold`
@@ -205,7 +210,7 @@ src/main/java/org/aspose/slides/foss/
 ## Don't
 
 - Don't import from `org.aspose.slides.foss.internal` — it is a private implementation detail
-- Don't attempt PDF, HTML, SVG, or image export — only PPTX is supported
+- Don't attempt PDF, HTML, SVG, or image export — the library does not render or convert
 - Don't use charts, SmartArt, animations, or VBA — they are not supported
 - Don't modify the public API class signatures — they are fixed
 
@@ -215,7 +220,7 @@ Not supported:
 
 - Charts, SmartArt, OLE objects, mathematical text
 - Animations and slide transitions
-- Export to PDF, HTML, SVG, or images
+- Export to PDF, HTML, SVG, or images; only PPTX, PPSX and POTX are written
 - VBA macros, digital signatures
 - Hyperlinks and action settings
 

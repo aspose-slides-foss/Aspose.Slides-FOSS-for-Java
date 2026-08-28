@@ -97,18 +97,31 @@ public final class Picture implements ISlidesPicture, ISlideComponent, IPresenta
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws IllegalArgumentException if {@code value} is {@code null}
+     * @throws IllegalStateException    if this picture is not bound to a package part, so that
+     *                                  no relationship can be declared for the image
+     */
     @Override
     public void setImage(IPPImage value) {
         if (value == null) {
             throw new IllegalArgumentException("Image must not be null");
         }
-        this.cachedImage = value;
-        // Set embed reference on the blip element.
-        // When no slide part context is available, mark with a pending reference.
-        String embedId = blip.getAttributeNS(NS_R, "embed");
-        if (embedId == null || embedId.isEmpty()) {
-            blip.setAttributeNS(NS_R, "r:embed", "rId_pending");
+        if (opcPackage == null || slidePartName == null) {
+            // An r:embed names a relationship in the owning part's .rels. With no part
+            // there is none to declare, and the two things that could be done instead are
+            // both worse than refusing: an invented id resolves to nothing, and accepting
+            // the image silently discards it -- and removes whatever reference was there.
+            throw new IllegalStateException(
+                    "This picture is not attached to a package part, so an image set on it "
+                            + "could not be given a relationship to refer to. Set the image "
+                            + "through a shape, a fill or a bullet that belongs to a slide, "
+                            + "layout or master.");
         }
+        this.cachedImage = value;
+        setBlipImage(blip, opcPackage, slidePartName, value);
     }
 
     @Override
@@ -156,54 +169,6 @@ public final class Picture implements ISlidesPicture, ISlideComponent, IPresenta
      */
     Element getBlipElement() {
         return blip;
-    }
-
-    /**
-     * Resolves any pending image references on {@code <a:blip>} elements within the given XML tree.
-     *
-     * <p>Blip elements may carry a transient {@code _pendingPartName} attribute that names
-     * an image part in the presentation package. This method iterates all {@code <a:blip>}
-     * descendants, matches each pending part name against the presentation's image collection,
-     * and wires up the proper {@code r:embed} reference.</p>
-     *
-     * @param element     the root XML element to scan for pending blip references
-     * @param parentSlide the parent slide providing access to the presentation's image collection
-     */
-    public static void flushPendingBlipImages(Element element, IBaseSlide parentSlide) {
-        NodeList blips = element.getElementsByTagNameNS(NS_A, "blip");
-        IPresentation presentation = parentSlide.getPresentation();
-        IImageCollection images = presentation.getImages();
-
-        for (int i = 0; i < blips.getLength(); i++) {
-            Element blipEl = (Element) blips.item(i);
-            String pendingPart = blipEl.getAttribute("_pendingPartName");
-            if (pendingPart == null || pendingPart.isEmpty()) {
-                continue;
-            }
-            blipEl.removeAttribute("_pendingPartName");
-
-            for (IPPImage ppImage : images) {
-                if (ppImage instanceof PPImage img && pendingPart.equals(img.getPartName())) {
-                    setBlipImage(blipEl, img);
-                    break;
-                }
-            }
-        }
-    }
-
-    /**
-     * Sets the embed reference on a blip element for the given image.
-     *
-     * <p>Package-private helper that wires a {@code r:embed} attribute to reference
-     * the image. Uses a synthetic relationship ID when no OPC package context is available.</p>
-     *
-     * @param blipEl the {@code <a:blip>} element
-     * @param image  the presentation image to reference
-     */
-    static void setBlipImage(Element blipEl, IPPImage image) {
-        String partName = ((PPImage) image).getPartName();
-        String relId = "rId_" + partName.replace("/", "_").replace(".", "_");
-        blipEl.setAttributeNS(NS_R, "r:embed", relId);
     }
 
     /**

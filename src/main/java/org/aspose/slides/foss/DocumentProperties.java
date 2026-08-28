@@ -506,8 +506,29 @@ public final class DocumentProperties implements IDocumentProperties {
     // ---- Save ----
 
     /**
-     * Serializes all loaded parts back to the package.
+     * Sets the statistics that describe the document rather than the author.
+     *
+     * <p>These are recomputed from the presentation before every save; they are
+     * not user-settable, and copying them out of a template or a source document
+     * is how a file comes to advertise a slide count that is not its own.</p>
+     *
+     * @param slides     the number of slides
+     * @param hidden     the number of hidden slides
+     * @param notes      the number of slides that have a notes page
+     * @param paragraphs the number of paragraphs across slides and notes
+     * @param words      the number of words across slides and notes
      */
+    void updateStatistics(int slides, int hidden, int notes, int paragraphs, int words) {
+        var app = ensureApp();
+        app.setSlides(slides);
+        app.setHiddenSlides(hidden);
+        app.setNotes(notes);
+        app.setParagraphs(paragraphs);
+        app.setWords(words);
+        app.markDirty();
+    }
+
+    /** Serializes every loaded property part back to the package. */
     public void save() {
         if (corePart != null) corePart.save();
         if (appPart != null) appPart.save();

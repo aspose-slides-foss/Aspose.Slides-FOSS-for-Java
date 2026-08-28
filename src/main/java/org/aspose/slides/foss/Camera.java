@@ -1,5 +1,6 @@
 package org.aspose.slides.foss;
 
+import org.aspose.slides.foss.internal.pptx.SchemaOrder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -15,6 +16,9 @@ public final class Camera implements ICamera {
 
     private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static final double ROTATION_UNIT = 60000.0;
+
+    /** The preset written when a camera is created or its type is cleared; {@code @prst} is required. */
+    private static final String DEFAULT_PRESET = "orthographicFront";
 
     private static final Map<String, String> CAMERA_PRST_MAP = Map.ofEntries(
             Map.entry("isometricBottomDown", "ISOMETRIC_BOTTOM_DOWN"),
@@ -123,12 +127,32 @@ public final class Camera implements ICamera {
     }
 
     private Element ensureCamera() {
-        Element cam = getCamera();
-        if (cam != null) return cam;
+        return ensureCameraElement(scene3d);
+    }
+
+    /**
+     * Returns the {@code <a:camera>} child of the given {@code <a:scene3d>},
+     * creating it in schema position with the default preset if absent.
+     *
+     * <p>{@code CT_Camera/@prst} is required, so the element is never written
+     * without one.</p>
+     *
+     * @param scene3d the {@code <a:scene3d>} element
+     * @return the camera element, never {@code null}
+     */
+    static Element ensureCameraElement(Element scene3d) {
+        NodeList children = scene3d.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (children.item(i) instanceof Element el
+                    && NS_A.equals(el.getNamespaceURI())
+                    && "camera".equals(el.getLocalName())) {
+                return el;
+            }
+        }
         Document doc = scene3d.getOwnerDocument();
-        cam = doc.createElementNS(NS_A, "a:camera");
-        cam.setAttribute("prst", "orthographicFront");
-        scene3d.appendChild(cam);
+        Element cam = doc.createElementNS(NS_A, "a:camera");
+        cam.setAttribute("prst", DEFAULT_PRESET);
+        SchemaOrder.insert(scene3d, cam);
         return cam;
     }
 
@@ -147,7 +171,9 @@ public final class Camera implements ICamera {
     public void setCameraType(CameraPresetType value) {
         Element cam = ensureCamera();
         if (value == CameraPresetType.NOT_DEFINED) {
-            cam.removeAttribute("prst");
+            // @prst is required on CT_Camera: clearing the type restores the
+            // schema default rather than dropping the attribute.
+            cam.setAttribute("prst", DEFAULT_PRESET);
         } else {
             String ooxmlVal = CAMERA_PRST_MAP_REV.get(value.name());
             if (ooxmlVal != null) cam.setAttribute("prst", ooxmlVal);

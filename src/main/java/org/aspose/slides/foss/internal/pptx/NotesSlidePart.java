@@ -5,13 +5,13 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Set;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Manages a notes slide XML part ({@code ppt/notesSlides/notesSlideN.xml}).
@@ -571,7 +571,7 @@ public final class NotesSlidePart {
         notes.appendChild(clrMapOvr);
 
         try {
-            var transformer = TransformerFactory.newInstance().newTransformer();
+            var transformer = SecureXml.transformerFactory().newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");

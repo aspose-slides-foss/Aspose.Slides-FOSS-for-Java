@@ -95,7 +95,7 @@ public final class AutoShape extends GeometryShape implements IAutoShape {
             txBody = findChild(xmlElement, NS_A, "txBody");
         }
         if (txBody == null) return null;
-        return new TextFrame(txBody, saveCallback);
+        return new TextFrame(txBody, saveCallback, getSlide(), this);
     }
 
     @Override
@@ -170,7 +170,7 @@ public final class AutoShape extends GeometryShape implements IAutoShape {
         }
 
         if (saveCallback != null) saveCallback.run();
-        return new TextFrame(txBody, saveCallback);
+        return new TextFrame(txBody, saveCallback, getSlide(), this);
     }
 
     /**
@@ -183,6 +183,6 @@ public final class AutoShape extends GeometryShape implements IAutoShape {
         if (spPr == null) {
             spPr = ensureChild(xmlElement, NS_P, "spPr", "p:spPr");
         }
-        return new FillFormat(spPr, saveCallback);
+        return withPartContext(new FillFormat(spPr, saveCallback));
     }
 }

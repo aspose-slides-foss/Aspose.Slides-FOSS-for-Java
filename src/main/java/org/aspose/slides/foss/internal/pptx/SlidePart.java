@@ -6,9 +6,7 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
@@ -18,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Static utility methods for cloning slide parts and updating relationships.
@@ -48,11 +47,13 @@ public final class SlidePart {
      */
     public static void createEmpty(OpcPackage pkg, String partName, String layoutPartName) {
         String slideXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-                + "<p:sld xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\" "
-                + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+                + "<p:sld xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+                + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" "
+                + "xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\">"
                 + "<p:cSld><p:spTree>"
                 + "<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
-                + "<p:grpSpPr/></p:spTree></p:cSld></p:sld>";
+                + "<p:grpSpPr/></p:spTree></p:cSld>"
+                + "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>";
         pkg.setPartBytes(partName, slideXml.getBytes(StandardCharsets.UTF_8));
 
         // Create rels pointing to the layout
@@ -300,7 +301,7 @@ public final class SlidePart {
      */
     public static byte[] serializeXml(Element root) {
         try {
-            var transformer = TransformerFactory.newInstance().newTransformer();
+            var transformer = SecureXml.transformerFactory().newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
@@ -320,7 +321,7 @@ public final class SlidePart {
      */
     public static Document parseXml(byte[] xmlBytes) {
         try {
-            var factory = DocumentBuilderFactory.newInstance();
+            var factory = SecureXml.documentBuilderFactory();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder()
                     .parse(new ByteArrayInputStream(xmlBytes));

@@ -1,11 +1,14 @@
 package org.aspose.slides.foss.internal.export;
 
 import org.aspose.slides.foss.export.ISaveOptions;
+import org.aspose.slides.foss.internal.pptx.ContentTypesManager;
 import org.aspose.slides.foss.internal.pptx.OpcPackage;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,32 +18,43 @@ import java.util.Map;
  * <p>Supports:</p>
  * <ul>
  *   <li>PPTX — Standard PowerPoint presentation</li>
- *   <li>PPTM — Macro-enabled presentation</li>
  *   <li>PPSX — PowerPoint show (opens in slideshow mode)</li>
- *   <li>PPSM — Macro-enabled show</li>
  *   <li>POTX — PowerPoint template</li>
- *   <li>POTM — Macro-enabled template</li>
  * </ul>
  *
- * <p>These formats are all OPC packages with different content types
- * for the main presentation part.</p>
+ * <p>These formats are all OPC packages that differ only in the content type of the
+ * main presentation part, so the same serializer writes all three.</p>
+ *
+ * <p>The macro-enabled names (PPTM, PPSM, POTM) are deliberately absent. Their package
+ * shape is the same, but their content types declare a VBA project that this library
+ * does not write; a file claiming to be macro-enabled with no {@code ppt/vbaProject.bin}
+ * is mislabelled just as surely as a PPTX named {@code .pdf}. They are rejected until
+ * VBA parts are carried through.</p>
  */
 public final class PptxExporter extends ExporterBase {
 
-    static {
-        // Auto-register this exporter for all supported formats.
-        ExporterRegistry.register(PptxExporter.class);
+    /**
+     * Mapping from SaveFormat values to main presentation content types.
+     *
+     * <p>Insertion-ordered: the key order is what a caller is shown when it asks for a
+     * format that cannot be written, and an unordered map would list them differently
+     * from one run to the next.</p>
+     */
+    private static final Map<String, String> CONTENT_TYPES = contentTypes();
+
+    private static Map<String, String> contentTypes() {
+        var types = new LinkedHashMap<String, String>();
+        types.put("Pptx",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml");
+        types.put("Ppsx",
+                "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml");
+        types.put("Potx",
+                "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml");
+        return Collections.unmodifiableMap(types);
     }
 
-    /** Mapping from SaveFormat values to main presentation content types. */
-    private static final Map<String, String> CONTENT_TYPES = Map.of(
-            "Pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-            "Pptm", "application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml",
-            "Ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml",
-            "Ppsm", "application/vnd.ms-powerpoint.slideshow.macroEnabled.main+xml",
-            "Potx", "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml",
-            "Potm", "application/vnd.ms-powerpoint.template.macroEnabled.main+xml"
-    );
+    /** The part whose content type identifies the format of the whole package. */
+    private static final String MAIN_PART_NAME = "/ppt/presentation.xml";
 
     private final String targetFormat;
 
@@ -70,9 +84,13 @@ public final class PptxExporter extends ExporterBase {
      */
     @Override
     public void exportToPath(OpcPackage opcPackage, String path, ISaveOptions options) throws IOException {
-        updateContentTypeIfNeeded(opcPackage);
-        try (var out = new FileOutputStream(path)) {
-            opcPackage.save(out);
+        String previous = applyMainPartContentType(opcPackage);
+        try {
+            try (var out = new FileOutputStream(path)) {
+                opcPackage.save(out);
+            }
+        } finally {
+            restoreMainPartContentType(opcPackage, previous);
         }
     }
 
@@ -86,20 +104,56 @@ public final class PptxExporter extends ExporterBase {
      */
     @Override
     public void exportToStream(OpcPackage opcPackage, OutputStream stream, ISaveOptions options) throws IOException {
-        updateContentTypeIfNeeded(opcPackage);
-        opcPackage.save(stream);
+        String previous = applyMainPartContentType(opcPackage);
+        try {
+            opcPackage.save(stream);
+        } finally {
+            restoreMainPartContentType(opcPackage, previous);
+        }
     }
 
     /**
-     * Update the content type of the main presentation part if converting.
+     * Declares {@code /ppt/presentation.xml} to be of the target format's content type.
      *
-     * <p>This is needed when saving as a different format than the source
-     * (e.g., saving a PPTX as POTX).</p>
+     * <p>ISO/IEC 29500-2 makes the content type the identity of a part: a package whose
+     * main part is declared {@code presentationml.presentation.main+xml} is a presentation
+     * whatever the file is named, and PowerPoint refuses a {@code .potx} or {@code .ppsx}
+     * whose declared type disagrees with its extension.</p>
      *
      * @param opcPackage the OPC package to update
+     * @return the content type that was declared before this call, or {@code null} if none
      */
-    void updateContentTypeIfNeeded(OpcPackage opcPackage) {
-        // Content type is preserved from the source format.
+    String applyMainPartContentType(OpcPackage opcPackage) {
+        String contentType = CONTENT_TYPES.get(targetFormat);
+        if (contentType == null) {
+            throw new IllegalStateException(
+                    "No main-part content type is defined for format '" + targetFormat + "'");
+        }
+        var contentTypes = new ContentTypesManager(opcPackage);
+        String previous = contentTypes.getContentType(MAIN_PART_NAME).orElse(null);
+        if (contentType.equals(previous)) {
+            return previous;
+        }
+        contentTypes.addOverride(MAIN_PART_NAME, contentType);
+        contentTypes.save();
+        return previous;
+    }
+
+    /**
+     * Restores the content type that {@link #applyMainPartContentType} replaced, so that
+     * exporting in one format does not change how a later save of the same presentation
+     * describes itself.
+     *
+     * @param opcPackage the OPC package to update
+     * @param previous   the content type to restore, or {@code null} to leave as written
+     */
+    private void restoreMainPartContentType(OpcPackage opcPackage, String previous) {
+        if (previous == null || previous.equals(CONTENT_TYPES.get(targetFormat))) {
+            return;
+        }
+        var contentTypes = new ContentTypesManager(opcPackage);
+        contentTypes.addOverride(MAIN_PART_NAME, previous);
+        contentTypes.save();
     }
 
     /**

@@ -1,7 +1,6 @@
 package org.aspose.slides.foss;
 
 import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 /**
  * Represents a text frame containing paragraphs.
@@ -10,8 +9,6 @@ import org.w3c.dom.NodeList;
  * to its paragraph collection and text frame format.</p>
  */
 public final class TextFrame implements ITextFrame {
-
-    private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
     private Element txBodyElement;
     private Runnable saveCallback;
@@ -91,6 +88,25 @@ public final class TextFrame implements ITextFrame {
      */
     void setParentShape(IShape parentShape) {
         this.parentShape = parentShape;
+        // The paragraphs were attached before the shape was known; tell them which part
+        // they are written to, so that a picture bullet can declare its relationship.
+        if (paragraphs != null) {
+            paragraphs.setPartContext(partContext());
+        }
+    }
+
+    /**
+     * @return the part this text frame is serialized into, or {@code null} if it is not
+     *         yet attached to one
+     */
+    private PartContext partContext() {
+        if (parentShape instanceof GeometryShape shape) {
+            ShapeCollection shapes = shape.owningShapes();
+            if (shapes != null) {
+                return new PartContext(shapes.getPartPackage(), shapes.getPartName());
+            }
+        }
+        return null;
     }
 
     /**
@@ -105,14 +121,10 @@ public final class TextFrame implements ITextFrame {
     private void loadParagraphs() {
         paragraphs = new ParagraphCollection();
         if (txBodyElement == null) return;
-        NodeList children = txBodyElement.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            if (children.item(i) instanceof Element el
-                    && NS_A.equals(el.getNamespaceURI())
-                    && "p".equals(el.getLocalName())) {
-                paragraphs.add(new Paragraph(el, this::save));
-            }
-        }
+        // Attach the collection to the text body so that adding, inserting or
+        // removing a paragraph changes the <a:p> children that are written to
+        // the file, rather than a private list nothing serialises.
+        paragraphs.initInternal(txBodyElement, partContext(), parentSlide, this::save);
     }
 
     private void save() {
@@ -153,43 +165,11 @@ public final class TextFrame implements ITextFrame {
     @Override
     public void setText(String text) {
         paragraphs.clear();
-        // Remove existing <a:p> elements from the DOM
-        if (txBodyElement != null) {
-            var toRemove = new java.util.ArrayList<Element>();
-            NodeList children = txBodyElement.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                if (children.item(i) instanceof Element el
-                        && NS_A.equals(el.getNamespaceURI())
-                        && "p".equals(el.getLocalName())) {
-                    toRemove.add(el);
-                }
-            }
-            for (Element el : toRemove) {
-                txBodyElement.removeChild(el);
-            }
-        }
         if (text != null) {
-            String[] lines = text.split("\n", -1);
-            for (String line : lines) {
-                if (txBodyElement != null) {
-                    // Create paragraph element in the same DOM
-                    var doc = txBodyElement.getOwnerDocument();
-                    Element pEl = doc.createElementNS(NS_A, "a:p");
-                    if (!line.isEmpty()) {
-                        Element rEl = doc.createElementNS(NS_A, "a:r");
-                        Element tEl = doc.createElementNS(NS_A, "a:t");
-                        tEl.setTextContent(line);
-                        rEl.appendChild(tEl);
-                        pEl.appendChild(rEl);
-                    }
-                    txBodyElement.appendChild(pEl);
-                    var p = new Paragraph(pEl, this::save);
-                    paragraphs.add(p);
-                } else {
-                    var p = new Paragraph();
-                    p.setText(line);
-                    paragraphs.add(p);
-                }
+            for (String line : text.split("\n", -1)) {
+                var p = new Paragraph();
+                p.setText(line);
+                paragraphs.add(p);
             }
         }
         save();

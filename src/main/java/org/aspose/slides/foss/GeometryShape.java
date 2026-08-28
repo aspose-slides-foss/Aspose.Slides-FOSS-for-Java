@@ -57,6 +57,28 @@ public class GeometryShape implements IGeometryShape {
         this.parentShapes = shapes != null ? shapes : List.of();
     }
 
+    /**
+     * Tells a fill format which package part this shape is serialized into, so that a
+     * picture fill can declare its image relationship in the right {@code .rels}.
+     *
+     * @param fill the fill format to inform
+     * @param <T>  the fill format type
+     * @return the same fill format
+     */
+    <T extends FillFormat> T withPartContext(T fill) {
+        if (parentShapes instanceof ShapeCollection shapes) {
+            fill.setPartContext(shapes.getPartPackage(), shapes.getPartName());
+        }
+        return fill;
+    }
+
+    /**
+     * @return the shape collection this shape belongs to, or {@code null} if it belongs to none
+     */
+    ShapeCollection owningShapes() {
+        return parentShapes instanceof ShapeCollection shapes ? shapes : null;
+    }
+
     // --- XML helpers ---
 
     /**
@@ -259,7 +281,7 @@ public class GeometryShape implements IGeometryShape {
     public IFillFormat getFillFormat() {
         if (xmlElement == null) return null;
         Element spPr = ensureChild(xmlElement, NS_P, "spPr", "p:spPr");
-        return new FillFormat(spPr, saveCallback);
+        return withPartContext(new FillFormat(spPr, saveCallback));
     }
 
     // --- Adjustments ---

@@ -62,12 +62,21 @@ class CameraTest {
         assertThat(cam2.getCameraType()).isEqualTo(CameraPresetType.PERSPECTIVE_ABOVE);
     }
 
+    /**
+     * {@code prst} is required on {@code CT_Camera}, so clearing the camera type has to
+     * restore the schema default; dropping the attribute leaves content a validating
+     * reader rejects. This test previously asserted the removal.
+     */
     @Test
-    void cameraType_notDefined_removesAttribute() {
+    void cameraType_notDefined_restoresTheDefaultPresetAndKeepsTheRequiredAttribute() {
         var cam = createCamera();
         cam.setCameraType(CameraPresetType.PERSPECTIVE_FRONT);
         cam.setCameraType(CameraPresetType.NOT_DEFINED);
-        assertThat(cam.getCameraType()).isEqualTo(CameraPresetType.NOT_DEFINED);
+
+        var camera = (Element) scene3d.getElementsByTagNameNS(NS_A, "camera").item(0);
+        assertThat(camera.hasAttribute("prst")).isTrue();
+        assertThat(camera.getAttribute("prst")).isEqualTo("orthographicFront");
+        assertThat(cam.getCameraType()).isEqualTo(CameraPresetType.ORTHOGRAPHIC_FRONT);
     }
 
     static Stream<CameraPresetType> cameraPresetTypes() {

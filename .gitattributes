@@ -1,0 +1,18 @@
+# Line endings are normalised: text is stored LF in the repository and checked out LF
+# on every platform. Without this, a file edited on Windows is committed with CRLF and
+# every line of it shows as changed, which buries the real change and destroys the
+# history of the file for anyone reading it later.
+* text=auto eol=lf
+
+# Left exactly as published, byte for byte.
+LICENSE -text
+
+# Binary fixtures: never examined for line endings, never converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pptx binary
+*.potx binary
+*.ppsx binary
+*.jar binary

@@ -2,19 +2,19 @@ package org.aspose.slides.foss.internal.pptx;
 
 import org.w3c.dom.Document;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Minimal OPC (Open Packaging Conventions) package backed by a ZIP archive.
@@ -83,6 +83,71 @@ public final class OpcPackage {
         parts.remove(uri);
     }
 
+    /**
+     * Removes a part the way ISO/IEC 29500-2 requires, rather than only its bytes.
+     *
+     * <p>Deleting a part is four operations that have to happen together: drop the
+     * {@code Relationship} in the owner's {@code .rels}, drop the {@code Override} in
+     * {@code [Content_Types].xml}, drop the part itself and drop the part's own
+     * {@code .rels}. Doing only the last leaves a relationship and a content type
+     * pointing at nothing, which strict readers — PowerPoint among them — reject.</p>
+     *
+     * <p>Parts that the removed part was the only reference to (its notes slide, its
+     * comments, images used nowhere else) are removed the same way, recursively. A part
+     * that anything else still points at is left alone.</p>
+     *
+     * @param partUri       the part to remove
+     * @param owningPartUri the part whose relationship points at it, or {@code null} if none
+     */
+    public void removePartCascading(String partUri, String owningPartUri) {
+        if (owningPartUri != null) {
+            var ownerRels = new RelsHelper(this, owningPartUri);
+            if (ownerRels.removeRelationshipsTo(partUri)) {
+                ownerRels.save();
+            }
+        }
+        removePartTree(partUri);
+    }
+
+    private void removePartTree(String partUri) {
+        if (!hasPart(partUri)) {
+            return;
+        }
+        List<String> targets = new RelsHelper(this, partUri).internalTargets();
+
+        parts.remove(partUri);
+        parts.remove(RelsHelper.getRelsPartName(partUri));
+        var contentTypes = new ContentTypesManager(this);
+        if (contentTypes.removeOverride("/" + partUri)) {
+            contentTypes.save();
+        }
+
+        for (String target : targets) {
+            if (hasPart(target) && !isReferencedByAnyPart(target)) {
+                removePartTree(target);
+            }
+        }
+    }
+
+    /**
+     * Returns whether any relationship anywhere in the package points at the given part.
+     *
+     * @param partUri the part to look for
+     * @return {@code true} if some {@code .rels} in the package targets it
+     */
+    public boolean isReferencedByAnyPart(String partUri) {
+        for (String name : List.copyOf(parts.keySet())) {
+            if (!name.endsWith(".rels")) {
+                continue;
+            }
+            String owner = RelsHelper.getSourcePartName(name);
+            if (new RelsHelper(this, owner).internalTargets().contains(partUri)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Returns all part URIs as an unmodifiable set. */
     public Set<String> getPartNames() {
         return java.util.Collections.unmodifiableSet(parts.keySet());
@@ -103,7 +168,7 @@ public final class OpcPackage {
         byte[] data = parts.get(uri);
         if (data == null) return null;
         try {
-            var factory = DocumentBuilderFactory.newInstance();
+            var factory = SecureXml.documentBuilderFactory();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder()
                     .parse(new ByteArrayInputStream(data));
@@ -119,13 +184,23 @@ public final class OpcPackage {
      * @param doc the XML document
      */
     public void serializeXml(String uri, Document doc) {
+        // A text body left with no paragraph is invalid however it came to be empty.
+        // Repaired here, on a copy, rather than on each route that can empty one: the
+        // paragraph collection reads this same tree and must still be able to report a
+        // count of zero after being cleared.
+        Document toWrite = TextBodies.withParagraphs(doc);
         try {
-            var transformer = TransformerFactory.newInstance().newTransformer();
-            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            var transformer = SecureXml.transformerFactory().newTransformer();
+            // Never re-indent. The parser keeps the whitespace text nodes of the
+            // document it read, so indenting on output adds a fresh layer of them
+            // to what is already indented: opening a file and saving it unchanged
+            // grew it every time, without bound in a loop, and made byte length
+            // useless as a "did anything change" signal.
+            transformer.setOutputProperty(OutputKeys.INDENT, "no");
             transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
             transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
             var sw = new ByteArrayOutputStream();
-            transformer.transform(new DOMSource(doc), new StreamResult(sw));
+            transformer.transform(new DOMSource(toWrite), new StreamResult(sw));
             parts.put(uri, sw.toByteArray());
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize XML part: " + uri, e);
@@ -139,7 +214,7 @@ public final class OpcPackage {
      */
     public static Document newDocument() {
         try {
-            return DocumentBuilderFactory.newInstance()
+            return SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
         } catch (javax.xml.parsers.ParserConfigurationException e) {

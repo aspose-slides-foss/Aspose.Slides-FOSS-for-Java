@@ -4,8 +4,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import org.aspose.slides.foss.internal.xml.SecureXml;
 
 /**
  * Represents a text paragraph.
@@ -30,7 +30,7 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
      */
     public Paragraph() {
         try {
-            Document doc = DocumentBuilderFactory.newInstance()
+            Document doc = SecureXml.documentBuilderFactory()
                     .newDocumentBuilder()
                     .newDocument();
             this.pElement = doc.createElementNS(NS_A, "a:p");
@@ -70,15 +70,30 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
      */
     public Paragraph initInternal(Element pElement, Element txbodyElement,
                                   Object slidePart, IBaseSlide parentSlide) {
+        return initInternal(pElement, txbodyElement, slidePart, parentSlide, this.saveCallback);
+    }
+
+    /**
+     * Initialises this paragraph from existing OOXML elements, replacing its
+     * save callback.
+     *
+     * @param pElement      the {@code <a:p>} XML element
+     * @param txbodyElement the {@code <a:txBody>} XML element containing this paragraph
+     * @param slidePart     the OPC slide part that owns the paragraph, or {@code null}
+     * @param parentSlide   the parent slide, or {@code null}
+     * @param saveCallback  callback invoked after mutations, or {@code null}
+     * @return this paragraph, for method chaining
+     */
+    public Paragraph initInternal(Element pElement, Element txbodyElement,
+                                  Object slidePart, IBaseSlide parentSlide,
+                                  Runnable saveCallback) {
         this.pElement = pElement;
         this.txbodyElement = txbodyElement;
         this.slidePart = slidePart;
         this.parentSlide = parentSlide;
+        this.saveCallback = saveCallback;
         this.portions = new PortionCollection(pElement, this::save);
         loadPortions();
-        if (slidePart != null && parentSlide != null) {
-            Picture.flushPendingBlipImages(pElement, parentSlide);
-        }
         return this;
     }
 
@@ -107,6 +122,9 @@ public final class Paragraph implements IParagraph, ISlideComponent, IPresentati
         if (paragraphFormat == null) {
             paragraphFormat = new ParagraphFormat(pElement, this::save);
         }
+        // Passed on every call, not only on creation: the paragraph learns which part it
+        // belongs to when its text frame is attached to a shape, which can be later.
+        paragraphFormat.setPartContext(slidePart instanceof PartContext ctx ? ctx : null);
         return paragraphFormat;
     }
 

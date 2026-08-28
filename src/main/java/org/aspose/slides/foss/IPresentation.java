@@ -172,8 +172,14 @@ public interface IPresentation extends IPresentationComponent, AutoCloseable {
     /**
      * Saves the specified slides of the presentation to the given file path.
      *
+     * <p>The indices are zero-based positions in {@link #getSlides()}. Repeats are
+     * ignored and the slides kept stay in document order, not the order they were
+     * named in. An empty array is rejected, because saving no slides is not a thing
+     * that can be done; {@code null} means every slide, which is what the overloads
+     * without a slide array do.</p>
+     *
      * @param path   the file path
-     * @param slides the slide indices to save
+     * @param slides the slide indices to save, or {@code null} for every slide
      * @param format the save format
      * @throws IOException if an I/O error occurs
      */
@@ -182,8 +188,14 @@ public interface IPresentation extends IPresentationComponent, AutoCloseable {
     /**
      * Saves the specified slides of the presentation to the given file path with options.
      *
+     * <p>The indices are zero-based positions in {@link #getSlides()}. Repeats are
+     * ignored and the slides kept stay in document order, not the order they were
+     * named in. An empty array is rejected, because saving no slides is not a thing
+     * that can be done; {@code null} means every slide, which is what the overloads
+     * without a slide array do.</p>
+     *
      * @param path    the file path
-     * @param slides  the slide indices to save
+     * @param slides  the slide indices to save, or {@code null} for every slide
      * @param format  the save format
      * @param options the save options
      * @throws IOException if an I/O error occurs
@@ -193,8 +205,14 @@ public interface IPresentation extends IPresentationComponent, AutoCloseable {
     /**
      * Saves the specified slides of the presentation to the given output stream.
      *
+     * <p>The indices are zero-based positions in {@link #getSlides()}. Repeats are
+     * ignored and the slides kept stay in document order, not the order they were
+     * named in. An empty array is rejected, because saving no slides is not a thing
+     * that can be done; {@code null} means every slide, which is what the overloads
+     * without a slide array do.</p>
+     *
      * @param stream the output stream
-     * @param slides the slide indices to save
+     * @param slides the slide indices to save, or {@code null} for every slide
      * @param format the save format
      * @throws IOException if an I/O error occurs
      */
@@ -203,8 +221,14 @@ public interface IPresentation extends IPresentationComponent, AutoCloseable {
     /**
      * Saves the specified slides of the presentation to the given output stream with options.
      *
+     * <p>The indices are zero-based positions in {@link #getSlides()}. Repeats are
+     * ignored and the slides kept stay in document order, not the order they were
+     * named in. An empty array is rejected, because saving no slides is not a thing
+     * that can be done; {@code null} means every slide, which is what the overloads
+     * without a slide array do.</p>
+     *
      * @param stream  the output stream
-     * @param slides  the slide indices to save
+     * @param slides  the slide indices to save, or {@code null} for every slide
      * @param format  the save format
      * @param options the save options
      * @throws IOException if an I/O error occurs

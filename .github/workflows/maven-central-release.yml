@@ -1,213 +1,133 @@
 name: Publish to Maven Central
 
-# Template: maven-central-release.yml.tpl
-# Source: aspose.org/templates/workflows/maven-central-release.yml.tpl
-# Placeholders (replaced by S-110 foss-java-publish skill at runtime):
-#   aspose-slides-foss   - Maven artifactId, e.g. aspose-3d-foss
-#   21  - Java version for temurin runner, e.g. 17 or 21
+# Publishes org.aspose:aspose-slides-foss to Maven Central through the Sonatype Central
+# Portal. A release is cut by bumping the version in pom.xml, committing, and pushing a
+# tag that matches it:
 #
-# Trigger: tag push (v* or V*) fires the full release pipeline.
-# GitHub Actions creates the GitHub Release automatically - product team
-# cuts a release with: git tag vX.Y.Z && git push origin vX.Y.Z
+#     git tag v26.8.0 && git push origin v26.8.0
 #
-# Bugs fixed vs. sprint-deployed versions (2026-07-16):
-#   - waitUtil -> waitUntil (central-publishing-maven-plugin parameter)
-#   - Removed "Install Maven (act only)" debug step (was PDF-specific)
-#   - Added 3-artifact final poll (jar + pom + sources, not just jar)
+# The job then verifies the tag against the POM, scans the tree for committed key
+# material, builds and runs the entire test suite, signs the artifacts, publishes them,
+# waits until the files are downloadable from repo1.maven.org, and only then creates the
+# GitHub Release. Every one of those steps can fail the job. A release workflow that
+# reports success without publishing is worse than no release workflow at all.
 #
-# Last validated: 2026-07-16 (S-110 foss-java-publish)
+# Running it from the Actions tab instead (workflow_dispatch) does the same build without
+# deploying anything, which is how a release is checked before the tag is pushed.
+#
+# Re-running a tag is safe. If the version is already on Maven Central the build and the
+# deploy are skipped, and the remaining steps still run - so a release that published but
+# then failed on a later step can be finished by re-running it, without inventing a new
+# version number.
+#
+# Actions are pinned to a commit SHA rather than to a tag. A tag is a movable pointer -
+# whoever controls the action repository can repoint v4 at different code, and every
+# workflow that references it starts running that code without a single change here. A
+# commit SHA cannot be repointed. The tag each SHA carried when it was pinned is in the
+# comment beside it; to upgrade, resolve the new tag to its SHA and replace both.
 
 on:
   push:
-    tags: ['v*', 'V*']          # PRIMARY: tag push fires full release pipeline
+    tags: ['v*', 'V*']
   workflow_dispatch:
-    inputs:
-      target:
-        description: 'Dispatch target: ubuntu (default) or windows (self-hosted)'
-        required: false
-        default: 'ubuntu'
-        type: choice
-        options: [ubuntu, windows]
 
 permissions:
-  contents: write               # required to create GitHub Release via gh cli
+  contents: write            # needed to create the GitHub Release
 
 jobs:
 
-  # -- JOB 1: Ubuntu dry-run ----------------------------------------------------
-  dry-run-ubuntu:
-    name: Dry-run build - ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.target != 'windows'
+  # ---------------------------------------------------------------------------
+  # Dry run: the release build, minus the signing and the publishing.
+  # ---------------------------------------------------------------------------
+  dry-run:
+    name: Dry-run build
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Set up Java 21 - no GPG (dry-run)
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-          server-id: central
-          server-username: MAVEN_CENTRAL_USERNAME
-          server-password: MAVEN_CENTRAL_PASSWORD
 
-      - name: Guard Maven coordinates
+      - name: Guard the Maven coordinates
         run: |
-          GID="$(mvn help:evaluate -Dexpression=project.groupId -q -DforceStdout)"
-          AID="$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)"
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          [ "$GID" = "org.aspose" ]       || { echo "groupId must be org.aspose (got $GID)"; exit 1; }
-          [ "$AID" = "aspose-slides-foss" ]    || { echo "artifactId must be aspose-slides-foss (got $AID)"; exit 1; }
-          case "$VER" in *-SNAPSHOT|*-alpha*) echo "Pre-release versions cannot be published"; exit 1 ;; esac
-          echo "Coordinates OK: ${GID}:${AID}:${VER}"
+          set -euo pipefail
+          GID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.groupId)"
+          AID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.artifactId)"
+          VER="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          [ "$GID" = "org.aspose" ] || { echo "::error::groupId must be org.aspose (got $GID)"; exit 1; }
+          [ "$AID" = "aspose-slides-foss" ] || { echo "::error::artifactId must be aspose-slides-foss (got $AID)"; exit 1; }
+          case "$VER" in
+            *-SNAPSHOT|*-alpha*|*-beta*|*-rc*)
+              echo "::error::pre-release versions cannot be published to Maven Central ($VER)"; exit 1 ;;
+          esac
+          echo "Coordinates: ${GID}:${AID}:${VER}"
 
-      - name: Check version not already on Maven Central
+      - name: Scan the tree for committed key material
         run: |
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          STATUS="$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://repo1.maven.org/maven2/org/aspose/aspose-slides-foss/${VER}/")"
-          [ "$STATUS" = "200" ] && { echo "Version ${VER} already on Maven Central - nothing to do"; exit 1; } \
-            || echo "Version ${VER} not yet on Central - OK"
+          set -euo pipefail
+          # The two patterns are written so that this file does not match itself: a real
+          # key block contains neither an alternation nor a character class, so the
+          # literal text below is not matched by the regular expression it spells out.
+          # Verified by running the scan against a file holding a real key block, and
+          # against this file alone.
+          if git grep -nIE \
+               -e '-----BEGIN [A-Z ]*(PRIVATE|SECRET) KEY' \
+               -e 'BEGIN PGP (PRIVATE|PUBLIC) KEY BL[O]CK' -- .; then
+            echo "::error::key material is committed in this repository - see the matches above"
+            exit 1
+          fi
+          echo "No key material found in tracked files."
 
-      - name: Secret scan
+      # The full test suite runs here. It is the only thing standing between a tag and a
+      # published artifact, so it is never skipped.
+      - name: Build, test and package
+        run: mvn -B --no-transfer-progress clean verify -Dgpg.skip=true
+
+      - name: Verify the three jars were produced
         run: |
-          git grep -nI -E "BEGIN PGP PRIVATE KEY BLOCK|BEGIN PGP PUBLIC KEY BLOCK" \
-            -- ':!.github/workflows/maven-central-release.yml' \
-            && { echo "PGP key block found - aborting"; exit 1; } || true
-
-      - name: Build (gpg.skip=true)
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-        run: mvn -B clean verify -Dgpg.skip=true -DskipTests
-
-      - name: Verify 3 jars exist
-        run: |
+          set -euo pipefail
           AID="aspose-slides-foss"
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          VER="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
           for f in "target/${AID}-${VER}.jar" \
                    "target/${AID}-${VER}-sources.jar" \
                    "target/${AID}-${VER}-javadoc.jar"; do
-            [ -f "$f" ] || { echo "Missing: $f"; exit 1; }
+            [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
+            echo "  $(sha256sum "$f")"
           done
-          echo "All 3 jars present."
 
-      - name: Verify clean working tree
+      - name: Verify the build left the working tree clean
         run: |
+          set -euo pipefail
           git diff --exit-code
           git diff --cached --exit-code
           [ -z "$(git ls-files --others --exclude-standard)" ] \
-            || { echo "Untracked files after build"; exit 1; }
+            || { echo "::error::the build created untracked files: $(git ls-files --others --exclude-standard)"; exit 1; }
 
-      - run: echo "::notice::DEPLOY SKIPPED - dry-run job"
+      - run: echo "::notice::Dry run only - nothing was signed and nothing was deployed."
 
-  # -- JOB 2: Windows self-hosted dry-run ---------------------------------------
-  dry-run-windows:
-    name: Dry-run build - Windows self-hosted (maven-pilot)
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'windows'
-    runs-on: [self-hosted, Windows, maven-pilot]
-    steps:
-      - name: Export user PATH
-        shell: powershell
-        run: |
-          $userPath = [System.Environment]::GetEnvironmentVariable('PATH', 'User')
-          $userPath -split ';' | Where-Object { $_ -ne '' } | ForEach-Object {
-              Add-Content -Path $env:GITHUB_PATH -Value $_
-          }
-
-      - uses: actions/checkout@v4
-
-      - name: Set up Java 21 - no GPG (dry-run)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          server-id: central
-          server-username: MAVEN_CENTRAL_USERNAME
-          server-password: MAVEN_CENTRAL_PASSWORD
-
-      - name: Guard Maven coordinates
-        shell: powershell
-        run: |
-          [xml]$pom = Get-Content pom.xml
-          $GID = $pom.project.groupId
-          $AID = $pom.project.artifactId
-          $VER = $pom.project.version
-          if ([string]::IsNullOrEmpty($GID) -or [string]::IsNullOrEmpty($AID) -or [string]::IsNullOrEmpty($VER)) {
-            Write-Error 'Failed to parse pom.xml'; exit 1
-          }
-          if ($GID -ne 'org.aspose')       { Write-Error "groupId must be org.aspose (got $GID)"; exit 1 }
-          if ($AID -ne 'aspose-slides-foss')    { Write-Error "artifactId must be aspose-slides-foss (got $AID)"; exit 1 }
-          if ($VER -match '-SNAPSHOT|-alpha') { Write-Error 'Pre-release versions cannot be published'; exit 1 }
-          Write-Host "Coordinates verified: ${GID}:${AID}:${VER}"
-
-      - name: Check version not already on Maven Central
-        shell: powershell
-        run: |
-          [xml]$pom = Get-Content pom.xml
-          $VER = $pom.project.version
-          $URL = "https://repo1.maven.org/maven2/org/aspose/aspose-slides-foss/$VER/"
-          try {
-            $r = Invoke-WebRequest -Uri $URL -Method Head -UseBasicParsing -ErrorAction Stop
-            Write-Error "Version $VER already on Maven Central: $URL"; exit 1
-          } catch {
-            if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
-            Write-Host "Version $VER not yet on Maven Central - OK."
-          }
-
-      - name: Secret scan
-        shell: powershell
-        run: |
-          $pgp = & git grep -nI -E 'BEGIN PGP PRIVATE KEY BLOCK|BEGIN PGP PUBLIC KEY BLOCK' `
-            -- ':(exclude).github/workflows/maven-central-release.yml' 2>&1
-          if ($pgp) { Write-Error 'PGP key block found - aborting'; exit 1 }
-          Write-Host 'Secret scan: CLEAN'
-          exit 0
-
-      - name: Build (gpg.skip=true)
-        shell: powershell
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-        run: mvn -B clean verify '-Dgpg.skip=true' '-DskipTests'
-
-      - name: Verify 3 jars exist
-        shell: powershell
-        run: |
-          $AID = 'aspose-slides-foss'
-          [xml]$pom = Get-Content pom.xml
-          $VER = $pom.project.version
-          @("target\$AID-$VER.jar","target\$AID-$VER-sources.jar","target\$AID-$VER-javadoc.jar") |
-            ForEach-Object {
-              if (-not (Test-Path $_)) { Write-Error "Missing: $_"; exit 1 }
-            }
-          Write-Host 'All 3 jars present.'
-
-      - name: Verify clean working tree
-        shell: powershell
-        run: |
-          & git diff --exit-code; if ($LASTEXITCODE -ne 0) { exit 1 }
-          & git diff --cached --exit-code; if ($LASTEXITCODE -ne 0) { exit 1 }
-          $u = & git ls-files --others --exclude-standard
-          if ($u) { Write-Error "Untracked files: $u"; exit 1 }
-
-      - run: Write-Host '::notice::DEPLOY SKIPPED - dry-run-windows'
-        shell: powershell
-
-  # -- JOB 3: Release deploy (tag push) -----------------------------------------
-  release-deploy:
-    name: Build, sign, and deploy Maven release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+  # ---------------------------------------------------------------------------
+  # Release: build, sign, publish, confirm.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Build, sign and publish
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Set up Java 21 with GPG import
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21 and import the signing key
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '21'
@@ -218,100 +138,172 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
-      - name: Guard coordinates and verify tag matches pom version
+      - name: Guard the coordinates and match the tag to the POM version
+        id: coordinates
         run: |
-          GID="$(mvn help:evaluate -Dexpression=project.groupId -q -DforceStdout)"
-          AID="$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)"
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          [ "$GID" = "org.aspose" ]       || { echo "groupId must be org.aspose (got $GID)"; exit 1; }
-          [ "$AID" = "aspose-slides-foss" ]    || { echo "artifactId must be aspose-slides-foss (got $AID)"; exit 1; }
-          case "$VER" in *-SNAPSHOT|*-alpha*) echo "Pre-release versions cannot be published"; exit 1 ;; esac
+          set -euo pipefail
+          GID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.groupId)"
+          AID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.artifactId)"
+          VER="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          [ "$GID" = "org.aspose" ] || { echo "::error::groupId must be org.aspose (got $GID)"; exit 1; }
+          [ "$AID" = "aspose-slides-foss" ] || { echo "::error::artifactId must be aspose-slides-foss (got $AID)"; exit 1; }
+          case "$VER" in
+            *-SNAPSHOT|*-alpha*|*-beta*|*-rc*)
+              echo "::error::pre-release versions cannot be published to Maven Central ($VER)"; exit 1 ;;
+          esac
           TAG="${{ github.ref_name }}"
           TAG_VER="${TAG#[vV]}"
-          [ "$TAG_VER" = "$VER" ] || { echo "Tag $TAG does not match pom.xml version $VER"; exit 1; }
-          echo "Coordinates OK: ${GID}:${AID}:${VER} (tag: ${TAG})"
+          [ "$TAG_VER" = "$VER" ] \
+            || { echo "::error::tag $TAG does not match the pom.xml version $VER"; exit 1; }
+          {
+            echo "version=$VER"
+            echo "artifact=$AID"
+            echo "base=https://repo1.maven.org/maven2/org/aspose/${AID}/${VER}/${AID}-${VER}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Coordinates: ${GID}:${AID}:${VER} (tag ${TAG})"
 
-      - name: Check version not already on Maven Central
+      - name: Scan the tree for committed key material
         run: |
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          STATUS="$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://repo1.maven.org/maven2/org/aspose/aspose-slides-foss/${VER}/")"
-          [ "$STATUS" = "200" ] && { echo "Version ${VER} already on Maven Central - nothing to do"; exit 1; } \
-            || echo "Version ${VER} not yet on Central - proceeding"
+          set -euo pipefail
+          # See the identical step in the dry-run job for why these patterns do not
+          # match the file they are written in.
+          if git grep -nIE \
+               -e '-----BEGIN [A-Z ]*(PRIVATE|SECRET) KEY' \
+               -e 'BEGIN PGP (PRIVATE|PUBLIC) KEY BL[O]CK' -- .; then
+            echo "::error::key material is committed in this repository - see the matches above"
+            exit 1
+          fi
+          echo "No key material found in tracked files."
 
-      - name: Secret scan
+      # Deciding whether there is anything to do. Finding the version already published
+      # is not an error: it is what a re-run of a release that half-failed looks like,
+      # and the remaining steps still need to run. Anything other than a plain 200 or
+      # 404 - a proxy error, a network failure, an empty reply - is an error, because
+      # treating it as "not published" would publish on top of a version that may exist.
+      - name: Find out whether this version is already on Maven Central
+        id: central
         run: |
-          git grep -nI -E "BEGIN PGP PRIVATE KEY BLOCK|BEGIN PGP PUBLIC KEY BLOCK" \
-            -- ':!.github/workflows/maven-central-release.yml' \
-            && { echo "PGP key block found - aborting"; exit 1; } || true
+          set -euo pipefail
+          URL="${{ steps.coordinates.outputs.base }}.jar"
+          STATUS="$(curl -sS --retry 3 --retry-all-errors --max-time 60 \
+                      -o /dev/null -w '%{http_code}\n' "$URL" | tail -n 1 || true)"
+          # curl writes one status line per attempt, so only the last one is the answer;
+          # an attempt that never got a reply writes 000, which is not 200 or 404 and so
+          # is treated as "do not know".
+          case "$STATUS" in
+            200)
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::${{ steps.coordinates.outputs.version }} is already on Maven Central - the build and the deploy will be skipped, the rest of the release will be completed" ;;
+            404)
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              echo "Version ${{ steps.coordinates.outputs.version }} is not on Maven Central yet." ;;
+            *)
+              echo "::error::could not determine whether ${URL} exists (HTTP ${STATUS})"
+              exit 1 ;;
+          esac
 
-      - name: Create GitHub Release if not exists
+      # One command: it compiles, runs the entire test suite, builds the sources and
+      # javadoc jars, signs everything and uploads it to the Central Portal. Because
+      # `deploy` runs after `test` in the Maven lifecycle, a failing test stops the
+      # release. Tests are never skipped here - a build that is not judged is not a
+      # release, it is a file transfer.
+      #
+      # The POM sets waitUntil=published, so this command does not return until the
+      # Portal reports the version published. A failed publication fails this step.
+      - name: Build, test, sign and deploy
+        if: steps.central.outputs.published == 'false'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn -B --no-transfer-progress clean deploy
+
+      - name: Verify the six artifacts that were uploaded
+        if: steps.central.outputs.published == 'false'
         run: |
+          set -euo pipefail
+          AID="${{ steps.coordinates.outputs.artifact }}"
+          VER="${{ steps.coordinates.outputs.version }}"
+          for f in "target/${AID}-${VER}.jar" \
+                   "target/${AID}-${VER}-sources.jar" \
+                   "target/${AID}-${VER}-javadoc.jar" \
+                   "target/${AID}-${VER}.jar.asc" \
+                   "target/${AID}-${VER}-sources.jar.asc" \
+                   "target/${AID}-${VER}-javadoc.jar.asc"; do
+            [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
+          done
+          sha256sum "target/${AID}-${VER}.jar" \
+                    "target/${AID}-${VER}-sources.jar" \
+                    "target/${AID}-${VER}-javadoc.jar"
+
+      - name: Verify the build left the working tree clean
+        if: steps.central.outputs.published == 'false'
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          [ -z "$(git ls-files --others --exclude-standard)" ] \
+            || { echo "::error::the build created untracked files: $(git ls-files --others --exclude-standard)"; exit 1; }
+
+      # The Portal reporting a version published and repo1.maven.org actually serving it
+      # are two different facts, separated by a sync that usually takes minutes. Until a
+      # plain HTTP GET returns the files, no developer can depend on this release, so
+      # this step waits for them and fails if they never appear. It is the check that
+      # decides whether the release succeeded, so it must not be downgraded to a warning.
+      #
+      # All five files are checked in every round rather than one file to completion and
+      # then the next, so the wait is bounded once for the whole set instead of once per
+      # file. Waiting per file could outlast the job timeout, which would end the run with
+      # "cancelled" instead of the message below saying what was missing.
+      #
+      # ROUNDS checks INTERVAL seconds apart put the last check (ROUNDS - 1) * INTERVAL
+      # seconds in - 28 minutes as set here, comfortably inside timeout-minutes. Every
+      # message computes its figure from those two variables rather than repeating it, so
+      # the loop and what it says about itself cannot drift apart.
+      - name: Wait until the files are downloadable from Maven Central
+        timeout-minutes: 35
+        run: |
+          set -euo pipefail
+          ROUNDS=20
+          INTERVAL=90
+          SUFFIXES=".pom .jar -sources.jar -javadoc.jar .jar.asc"
+          for i in $(seq 1 "$ROUNDS"); do
+            MISSING=""
+            for SUFFIX in $SUFFIXES; do
+              URL="${{ steps.coordinates.outputs.base }}${SUFFIX}"
+              # curl writes the status code through -w even when the request never got a
+              # reply, and writes 000 in that case, so its own output is already the
+              # answer. `|| true` keeps that non-zero exit from ending the step; a second
+              # "000" appended here would print the nonsense "HTTP 000000" below.
+              STATUS="$(curl -sS --max-time 60 -o /dev/null -w '%{http_code}' "$URL" || true)"
+              [ -n "$STATUS" ] || STATUS="000"
+              [ "$STATUS" = "200" ] || MISSING="${MISSING} ${SUFFIX}(HTTP ${STATUS})"
+            done
+            if [ -z "$MISSING" ]; then
+              echo "All five files are downloadable from Maven Central after $(( (i - 1) * INTERVAL / 60 )) minutes:"
+              for SUFFIX in $SUFFIXES; do echo "  ${{ steps.coordinates.outputs.base }}${SUFFIX}"; done
+              exit 0
+            fi
+            echo "round ${i}/${ROUNDS} - still missing:${MISSING}"
+            if [ "$i" -lt "$ROUNDS" ]; then sleep "$INTERVAL"; fi
+          done
+          echo "::error::after $(( (ROUNDS - 1) * INTERVAL / 60 )) minutes Maven Central is still not serving:${MISSING}"
+          echo "::error::the release did not land on Maven Central"
+          exit 1
+
+      # Last, so that the presence of a GitHub Release means the version really is
+      # published and downloadable, and not merely that a tag was pushed.
+      - name: Create the GitHub Release
+        run: |
+          set -euo pipefail
           TAG="${{ github.ref_name }}"
           if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            echo "Release $TAG already exists - skipping creation"
+            echo "Release $TAG already exists."
           else
             gh release create "$TAG" \
               --repo "${{ github.repository }}" \
               --title "Release $TAG" \
               --generate-notes \
               --latest
-            echo "Created GitHub Release $TAG"
+            echo "Created GitHub Release $TAG."
           fi
-
-      - name: Build, package, and sign
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -B clean verify -DskipTests
-
-      - name: Verify 6 artifacts (3 jars + 3 signatures)
-        run: |
-          AID="aspose-slides-foss"
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          for f in \
-            "target/${AID}-${VER}.jar" \
-            "target/${AID}-${VER}-sources.jar" \
-            "target/${AID}-${VER}-javadoc.jar" \
-            "target/${AID}-${VER}.jar.asc" \
-            "target/${AID}-${VER}-sources.jar.asc" \
-            "target/${AID}-${VER}-javadoc.jar.asc"; do
-            [ -f "$f" ] || { echo "Missing: $f"; exit 1; }
-          done
-          echo "All 6 artifacts present."
-
-      - name: Verify clean working tree
-        run: |
-          git diff --exit-code
-          git diff --cached --exit-code
-          [ -z "$(git ls-files --others --exclude-standard)" ] \
-            || { echo "Untracked files after build"; exit 1; }
-
-      - name: Deploy to Maven Central (autoPublish=true, waitUntil=validated)
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -B deploy -DskipTests
-
-      - name: Verify artifact available on Maven Central (best-effort, 10 min)
-        run: |
-          AID="aspose-slides-foss"
-          VER="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          for SUFFIX in ".jar" ".pom" "-sources.jar"; do
-            URL="https://repo1.maven.org/maven2/org/aspose/${AID}/${VER}/${AID}-${VER}${SUFFIX}"
-            echo "Polling: $URL"
-            for i in $(seq 1 6); do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-              if [ "$STATUS" = "200" ]; then
-                echo "  HTTP 200 confirmed"
-                break
-              fi
-              echo "  Attempt $i/6: HTTP $STATUS - waiting 2 min..."
-              [ $i -lt 6 ] && sleep 120
-            done
-            [ "$STATUS" = "200" ] \
-              || echo "::warning::${AID}-${VER}${SUFFIX} not yet on Central after 10 min"
-          done
-          echo "::notice::Deployment submitted. Maven Central sync typically takes 30min-4h."

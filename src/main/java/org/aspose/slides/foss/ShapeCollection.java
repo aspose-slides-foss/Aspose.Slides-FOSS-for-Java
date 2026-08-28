@@ -48,6 +48,10 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
     private Runnable saveCallback;
     private IGroupShape parentGroup;
 
+    /** The package and part these shapes live in, when they belong to one. */
+    private org.aspose.slides.foss.internal.pptx.OpcPackage partPackage;
+    private String partName;
+
     /** Lazily-loaded shapes cache; {@code null} means not yet loaded. */
     private List<IShape> shapesCache;
 
@@ -84,6 +88,34 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
         this.saveCallback = saveCallback;
         this.shapesCache = null;
         this.elementToShape.clear();
+    }
+
+    /**
+     * Records which package part these shapes are serialized into.
+     *
+     * <p>A shape that embeds an image has to declare a relationship in its own part's
+     * {@code .rels}, which means it has to know which part that is.</p>
+     *
+     * @param opcPackage the package the part belongs to
+     * @param partName   the part these shapes live in, e.g. {@code "ppt/slides/slide1.xml"}
+     */
+    void setPartContext(org.aspose.slides.foss.internal.pptx.OpcPackage opcPackage, String partName) {
+        this.partPackage = opcPackage;
+        this.partName = partName;
+    }
+
+    /**
+     * @return the package these shapes are serialized into, or {@code null} if unattached
+     */
+    org.aspose.slides.foss.internal.pptx.OpcPackage getPartPackage() {
+        return partPackage;
+    }
+
+    /**
+     * @return the part these shapes are serialized into, or {@code null} if unattached
+     */
+    String getPartName() {
+        return partName;
     }
 
     // ── XML access ──────────────────────────────────────────────────────
@@ -568,10 +600,10 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
         nvPicPr.appendChild(doc.createElementNS(NS_P, "p:nvPr"));
         pic.appendChild(nvPicPr);
 
-        // blipFill
+        // blipFill. The r:embed is written once the image is embedded below, since it must
+        // name a relationship that this part's .rels actually declares.
         Element blipFill = doc.createElementNS(NS_P, "p:blipFill");
         Element blip = doc.createElementNS(NS_A, "a:blip");
-        blip.setAttributeNS(NS_R, "r:embed", "rId_img");
         blipFill.appendChild(blip);
         Element stretch = doc.createElementNS(NS_A, "a:stretch");
         stretch.appendChild(doc.createElementNS(NS_A, "a:fillRect"));
@@ -605,12 +637,13 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
         frame.setParentShapes(this);
         elementToShape.put(pic, frame);
 
-        // Set the image via the picture format
+        // Point the blip at the image through a relationship declared in this part's .rels
         if (image != null) {
-            IPictureFillFormat pff = frame.getPictureFormat();
-            if (pff != null) {
-                pff.getPicture().setImage(image);
+            if (partPackage == null || partName == null) {
+                throw new IllegalStateException(
+                        "Cannot embed an image: these shapes are not attached to a package part");
             }
+            Picture.setBlipImage(blip, partPackage, partName, image);
         }
 
         return frame;
@@ -658,9 +691,9 @@ public final class ShapeCollection implements IShapeCollection, Iterable<IShape>
         cNvPr.setAttribute("name", tableName);
         nvGfPr.appendChild(cNvPr);
         Element cNvGfPr = doc.createElementNS(NS_P, "p:cNvGraphicFramePr");
-        Element gfLocking = doc.createElementNS(NS_A, "a:graphicFrameLocking");
-        gfLocking.setAttribute("noGrp", "1");
-        cNvGfPr.appendChild(gfLocking);
+        Element gfLocks = doc.createElementNS(NS_A, "a:graphicFrameLocks");
+        gfLocks.setAttribute("noGrp", "1");
+        cNvGfPr.appendChild(gfLocks);
         nvGfPr.appendChild(cNvGfPr);
         nvGfPr.appendChild(doc.createElementNS(NS_P, "p:nvPr"));
         gf.appendChild(nvGfPr);

@@ -32,7 +32,6 @@ public final class SlideCollection implements ISlideCollection {
     private final List<Slide> slides = new ArrayList<>();
     private Presentation presentation;
     private OpcPackage opcPackage;
-    private PresentationPart presentationPart;
     private Function<String, LayoutSlide> layoutResolver;
 
     /**
@@ -61,7 +60,6 @@ public final class SlideCollection implements ISlideCollection {
                              Function<String, LayoutSlide> layoutResolver) {
         this.presentation = (Presentation) presentation;
         this.opcPackage = opcPackage;
-        this.presentationPart = presentationPart;
         this.layoutResolver = layoutResolver;
         slides.clear();
 
@@ -120,64 +118,32 @@ public final class SlideCollection implements ISlideCollection {
 
     @Override
     public ISlide addClone(ISlide sourceSlide) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, -1, null, null, false);
-        }
-        Slide newSlide = createSlide();
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, -1, null, null, false);
     }
 
     @Override
     public ISlide addClone(ISlide sourceSlide, ILayoutSlide destLayout) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, -1, destLayout, null, false);
-        }
-        Slide newSlide = createSlide();
-        newSlide.setLayoutSlide(destLayout);
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, -1, destLayout, null, false);
     }
 
     @Override
     public ISlide addClone(ISlide sourceSlide, IMasterSlide destMaster, boolean allowCloneMissingLayout) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, -1, null, destMaster, allowCloneMissingLayout);
-        }
-        Slide newSlide = createSlide();
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, -1, null, destMaster, allowCloneMissingLayout);
     }
 
     @Override
     public ISlide insertClone(int index, ISlide sourceSlide) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, index, null, null, false);
-        }
-        Slide newSlide = createSlideAt(index);
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, index, null, null, false);
     }
 
     @Override
     public ISlide insertClone(int index, ISlide sourceSlide, ILayoutSlide destLayout) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, index, destLayout, null, false);
-        }
-        Slide newSlide = createSlideAt(index);
-        newSlide.setLayoutSlide(destLayout);
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, index, destLayout, null, false);
     }
 
     @Override
     public ISlide insertClone(int index, ISlide sourceSlide, IMasterSlide destMaster, boolean allowCloneMissingLayout) {
-        if (opcPackage != null) {
-            return cloneSlideInternal(sourceSlide, index, null, destMaster, allowCloneMissingLayout);
-        }
-        Slide newSlide = createSlideAt(index);
-        cloneShapes(sourceSlide, newSlide);
-        return newSlide;
+        return cloneSlideInternal(sourceSlide, index, null, destMaster, allowCloneMissingLayout);
     }
 
     @Override
@@ -192,32 +158,63 @@ public final class SlideCollection implements ISlideCollection {
 
     @Override
     public ISlide addEmptySlide(ILayoutSlide layout) {
-        if (opcPackage != null) {
-            return addEmptySlideInternal(layout, -1);
-        }
-        Slide newSlide = createSlide();
-        newSlide.setLayoutSlide(layout);
-        return newSlide;
+        return addEmptySlideInternal(layout, -1);
     }
 
     @Override
     public ISlide insertEmptySlide(int index, ILayoutSlide layout) {
-        if (opcPackage != null) {
-            return addEmptySlideInternal(layout, index);
-        }
-        Slide newSlide = createSlideAt(index);
-        newSlide.setLayoutSlide(layout);
-        return newSlide;
+        return addEmptySlideInternal(layout, index);
     }
 
     @Override
     public void remove(ISlide value) {
-        slides.remove(value);
+        int index = indexOf(value);
+        if (index < 0) {
+            return;
+        }
+        removeAt(index);
     }
 
     @Override
     public void removeAt(int index) {
+        Slide slide = slides.get(index);
+        unregisterSlide(slide);
         slides.remove(index);
+    }
+
+    /**
+     * Deletes a slide from the package: its {@code p:sldId}, the presentation relationship
+     * that reached it, its content-type {@code Override}, its part, its part's own
+     * {@code .rels}, and anything the slide was the last reference to.
+     *
+     * @param slide the slide being removed from this collection
+     */
+    private void unregisterSlide(Slide slide) {
+        String partName = slide.getSlidePartUri();
+        if (partName == null) {
+            return;
+        }
+        OpcPackage pkg = getEffectivePackage();
+        var presRels = new RelsHelper(pkg, PresentationPart.PART_NAME);
+
+        String relId = null;
+        for (RelsHelper.RelEntry entry : presRels.getAllRelationships()) {
+            if (REL_TYPE_SLIDE.equals(entry.type())
+                    && partName.equals(SlidePart.resolveTargetStatic(
+                            PresentationPart.PART_NAME, entry.target()))) {
+                relId = entry.id();
+                break;
+            }
+        }
+
+        if (relId != null) {
+            PresentationPart presPart = getEffectivePresentationPart();
+            if (presPart.removeSlideReferenceByRelId(relId)) {
+                presPart.save();
+            }
+        }
+
+        pkg.removePartCascading(partName, PresentationPart.PART_NAME);
     }
 
     @Override
@@ -273,8 +270,13 @@ public final class SlideCollection implements ISlideCollection {
         OpcPackage pkg = getEffectivePackage();
         PresentationPart presPart = getEffectivePresentationPart();
 
-        // Determine the layout part name
+        // Determine the layout part name. A slide must relate to a layout; the layout objects
+        // the presentation exposes are not always backed by a part, so fall back to a real one.
         String layoutPartName = resolveLayoutPartName(layout);
+        if (layoutPartName == null) {
+            layoutPartName = getFirstLayoutPartName().orElseThrow(() -> new IllegalStateException(
+                    "Cannot add a slide: the presentation has no slide layout part to relate it to"));
+        }
 
         // Determine the next available slide file number
         int nextNum = getNextSlideFileNumber();
@@ -350,8 +352,10 @@ public final class SlideCollection implements ISlideCollection {
         OpcPackage pkg = getEffectivePackage();
         PresentationPart presPart = getEffectivePresentationPart();
 
-        // Get source package and part name
+        // Get source package and part name. The clone is made from the source slide's bytes,
+        // so any edit still held in its DOM has to reach the package first.
         Slide sourceSlideImpl = (Slide) sourceSlide;
+        sourceSlideImpl.flush();
         OpcPackage sourcePackage = ((Presentation) sourceSlideImpl.getPresentation()).getPackage();
         String sourcePartName = sourceSlideImpl.getSlidePartUri();
 
@@ -655,10 +659,14 @@ public final class SlideCollection implements ISlideCollection {
         throw new IllegalStateException("SlideCollection not initialized");
     }
 
+    /**
+     * Returns a presentation part parsed from the package as it stands now.
+     *
+     * <p>Deliberately not cached: {@code presentation.xml} is also written by the document
+     * properties and slide-numbering code, and a manager holding a DOM parsed before one of
+     * those writes would silently undo it on its next save.</p>
+     */
     private PresentationPart getEffectivePresentationPart() {
-        if (presentationPart != null) {
-            return presentationPart;
-        }
         return new PresentationPart(getEffectivePackage());
     }
 
@@ -680,47 +688,4 @@ public final class SlideCollection implements ISlideCollection {
         return Optional.empty();
     }
 
-    private Slide createSlide() {
-        int newIndex = slides.size();
-        addSlideXmlPart(newIndex);
-        Slide slide = new Slide(presentation, newIndex);
-        slides.add(slide);
-        return slide;
-    }
-
-    private Slide createSlideAt(int index) {
-        int newIndex = slides.size();
-        addSlideXmlPart(newIndex);
-        Slide slide = new Slide(presentation, newIndex);
-        slides.add(index, slide);
-        return slide;
-    }
-
-    private void addSlideXmlPart(int index) {
-        if (presentation == null) return;
-        OpcPackage pkg = presentation.getPackage();
-        int slideNumber = index + 1;
-        String slidePartUri = "ppt/slides/slide" + slideNumber + ".xml";
-        pkg.setPartBytes(slidePartUri, (
-                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-                "<p:sld xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\">" +
-                "<p:cSld><p:spTree>" +
-                "<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>" +
-                "<p:grpSpPr/></p:spTree></p:cSld></p:sld>"
-        ).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private void cloneShapes(ISlide source, Slide target) {
-        IShapeCollection sourceShapes = source.getShapes();
-        for (int i = 0; i < sourceShapes.size(); i++) {
-            IShape shape = sourceShapes.get(i);
-            if (shape instanceof AutoShape autoShape) {
-                target.getShapes().addAutoShape(
-                        autoShape.getShapeType(),
-                        autoShape.getX(), autoShape.getY(),
-                        autoShape.getWidth(), autoShape.getHeight()
-                );
-            }
-        }
-    }
 }

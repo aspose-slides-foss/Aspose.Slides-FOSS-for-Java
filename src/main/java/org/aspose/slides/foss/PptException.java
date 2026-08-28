@@ -6,6 +6,12 @@ package org.aspose.slides.foss;
 public class PptException extends RuntimeException {
 
     /**
+     * The value the compiler computed for this class before it was declared, so that an
+     * instance serialized by an earlier build still deserializes here.
+     */
+    private static final long serialVersionUID = 4558838558670875332L;
+
+    /**
      * Creates a new {@code PptException} with no detail message.
      */
     public PptException() {

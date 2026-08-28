@@ -1,17 +1,16 @@
 package org.aspose.slides.foss.integration;
 import org.aspose.slides.foss.*;
 
+import org.aspose.slides.foss.conformance.Fixtures;
 import org.aspose.slides.foss.export.SaveFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 /**
  * Integration tests for Presentation create / load / save / properties.
@@ -86,16 +85,23 @@ class PresentationTest implements AutoCloseable {
         }
     }
 
-    /** Load a known .pptx from test_data and verify it opens. */
+    /**
+     * Load a .pptx this library did not write and verify what it reports about it.
+     *
+     * <p>This used to point at a file under {@code test_data} that is not in the
+     * repository, so {@code assumeThat} skipped it on every run and it never
+     * checked anything. It now builds its input with a third-party writer, and
+     * asserts the masters and layouts of the deck rather than only that opening
+     * it did not throw.</p>
+     */
     @Test
-    void testLoadExisting() throws IOException {
-        Path path = Path.of("src", "test", "resources", "aspose", "slidesfoss",
-                "test_data", "Presentation.pptx");
-        assumeThat(Files.exists(path))
-                .as("Presentation.pptx not found in test_data")
-                .isTrue();
+    void testLoadExisting() throws Exception {
+        Path path = Fixtures.authoredDeck(tempDir, "authored.pptx", "First", "Second");
         try (var pres = new Presentation(path.toString())) {
-            assertThat(pres.getSlides().size()).isGreaterThanOrEqualTo(1);
+            assertThat(pres.getSlides().size()).isEqualTo(2);
+            assertThat(pres.getMasters().size()).isEqualTo(1);
+            assertThat(pres.getLayoutSlides().size()).isEqualTo(Fixtures.LAYOUTS_IN_FIXTURE);
+            assertThat(pres.getSlides().get(0).getLayoutSlide()).isNotNull();
         }
     }
 

@@ -335,13 +335,13 @@ public abstract class Shape extends GeometryShape implements IShape, ISlideCompo
     /**
      * Returns the {@code <a:xfrm>} element for this shape.
      *
-     * <p>Handles different shape types:
+     * <p>Handles different shape types:</p>
      * <ul>
      *   <li>{@code sp}, {@code pic}, {@code cxnSp}: {@code spPr/a:xfrm}</li>
      *   <li>{@code grpSp}: {@code grpSpPr/a:xfrm}</li>
      *   <li>{@code graphicFrame}: {@code p:xfrm} (direct child)</li>
      * </ul>
-     * For placeholder shapes with no local xfrm, walks the
+     * <p>For placeholder shapes with no local xfrm, walks the
      * layout &rarr; master inheritance chain.</p>
      *
      * @return the xfrm element, or {@code null}

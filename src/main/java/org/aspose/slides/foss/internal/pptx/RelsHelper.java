@@ -149,6 +149,78 @@ public final class RelsHelper {
     }
 
     /**
+     * Removes a relationship by ID.
+     *
+     * @param id the relationship ID to remove
+     * @return {@code true} if a relationship with that ID was present and has been removed
+     */
+    public boolean removeRelationship(String id) {
+        if (relationships.remove(id) == null) {
+            return false;
+        }
+        NodeList relElements = root.getElementsByTagName("*");
+        for (int i = 0; i < relElements.getLength(); i++) {
+            Element el = (Element) relElements.item(i);
+            if ("Relationship".equals(el.getLocalName()) && id.equals(el.getAttribute("Id"))) {
+                root.removeChild(el);
+                break;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Removes every internal relationship whose target resolves to the given part.
+     *
+     * @param partUri the part being pointed at, as an absolute package path
+     * @return {@code true} if at least one relationship was removed
+     */
+    public boolean removeRelationshipsTo(String partUri) {
+        boolean removed = false;
+        for (RelEntry entry : getAllRelationships()) {
+            if ("External".equals(entry.targetMode())) {
+                continue;
+            }
+            if (partUri.equals(SlidePart.resolveTargetStatic(sourcePart, entry.target()))) {
+                removed |= removeRelationship(entry.id());
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Returns the parts inside the package that this part's relationships point at.
+     *
+     * @return absolute package paths of the internal relationship targets, in declaration order
+     */
+    public List<String> internalTargets() {
+        var targets = new ArrayList<String>();
+        for (RelEntry entry : relationships.values()) {
+            if ("External".equals(entry.targetMode())) {
+                continue;
+            }
+            targets.add(SlidePart.resolveTargetStatic(sourcePart, entry.target()));
+        }
+        return targets;
+    }
+
+    /**
+     * Returns the part that owns a {@code .rels} part.
+     *
+     * @param relsPartName the {@code .rels} path
+     * @return the owning part path; the empty string for the package-level {@code _rels/.rels}
+     */
+    public static String getSourcePartName(String relsPartName) {
+        int marker = relsPartName.lastIndexOf("_rels/");
+        if (marker < 0 || !relsPartName.endsWith(".rels")) {
+            return relsPartName;
+        }
+        String dir = relsPartName.substring(0, marker);
+        String file = relsPartName.substring(marker + "_rels/".length());
+        return dir + file.substring(0, file.length() - ".rels".length());
+    }
+
+    /**
      * Saves the relationships back to the package.
      */
     public void save() {

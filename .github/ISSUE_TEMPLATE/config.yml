@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java/security/advisories/new
+    about: Report privately. Never open a public issue for a security problem.
+  - name: "\"How do I …?\" — read this first"
+    url: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Java#documentation-and-support
+    about: The README's Examples and Limitations sections, and the Aspose.Slides for Java documentation, answer most usage questions. File an issue only once you can say what you tried.
+  - name: A different edition of this library
+    url: https://github.com/aspose-slides-foss
+    about: The .NET, C++ and Python editions have their own repositories and their own issue trackers, and they do not have the same capabilities.
+  - name: The commercial Aspose.Slides for Java
+    url: https://forum.aspose.com/c/slides/11
+    about: Different software. Rendering, conversion, charts and licensing questions belong there.

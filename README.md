@@ -15,6 +15,44 @@ output, and everything it cannot do is listed under [Limitations](#limitations).
 
 ---
 
+## At a glance
+
+```mermaid
+flowchart TD
+  subgraph StartingPoints["Starting points"]
+    direction TB
+    i1["A new, empty presentation"]
+    i2["An existing .pptx, from a path or an input stream"]
+  end
+  PRODUCT["Aspose.Slides FOSS for Java"]
+  subgraph Capabilities["What it does"]
+    direction LR
+    subgraph capl[" "]
+      direction TB
+      c1["Slides: add, insert, remove, clone, hide"]
+      c2["Shapes: AutoShape, Table, Connector, PictureFrame"]
+      c3["Text: TextFrame, Paragraph, Portion, bullets"]
+      c4["Fill, line and 3-D styling"]
+    end
+    subgraph capr[" "]
+      direction TB
+      c5["Eight effects: outer and inner shadow, glow, soft edge, reflection, blur, preset shadow, fill overlay"]
+      c6["Document properties: core, extended, custom"]
+      c7["Speaker notes and comments"]
+      c8["Images embedded from bytes, an IImage or a stream"]
+    end
+  end
+  subgraph Outputs["Outputs"]
+    direction TB
+    o1[".pptx, .ppsx or .potx, to a path or an output stream"]
+    o2["Parts the library does not model, carried through unchanged"]
+    o3["No PDF, HTML, SVG or image export"]
+  end
+  StartingPoints --> PRODUCT --> Capabilities --> Outputs
+```
+
+---
+
 ## Requirements
 
 | | |

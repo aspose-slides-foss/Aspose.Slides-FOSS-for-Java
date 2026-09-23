@@ -794,7 +794,13 @@ public final class Presentation implements IPresentation {
     }
 
     private void saveCommentAuthors() {
-        if (commentAuthors.isEmpty()) return;
+        if (commentAuthors.isEmpty()) {
+            // Returning without writing left the list read from the file in place, so the
+            // last author removed stayed in it. With no authors there are no comments, and
+            // the part goes with its relationship and content-type Override.
+            pkg.removePartCascading("ppt/commentAuthors.xml", PresentationPart.PART_NAME);
+            return;
+        }
         Document doc = OpcPackage.newDocument();
         Element root = doc.createElementNS(NS_P, "p:cmAuthorLst");
         doc.appendChild(root);

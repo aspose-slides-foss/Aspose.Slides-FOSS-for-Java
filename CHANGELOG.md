@@ -36,6 +36,12 @@ dated when that version is released.
   takes the slide's number when that name is free, and the lowest free number otherwise. A cloned
   slide is still saved without the source slide's comments. Covered by
   `PartNumberingConformanceTest`.
+- **Removing the last comment author removes them from the file.** `getCommentAuthors().removeAt`,
+  `remove` and `clear` removed the author's comments, but when no author was left the author list
+  read from the file was never written back, so `ppt/commentAuthors.xml` still named the author.
+  With no authors left, that part is now removed along with its relationship and content-type
+  override. Removing one author of several already worked and is unchanged. Covered by
+  `PartRemovalConformanceTest`.
 - **A removed slide leaves its section.** Removing a slide — or leaving it out of a subset save —
   deleted it from `p:sldIdLst` but left its id in the deck's section list (the `p14:sectionLst`
   extension PowerPoint writes), which then named a slide the presentation no longer had. The id

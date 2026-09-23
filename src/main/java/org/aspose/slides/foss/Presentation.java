@@ -41,6 +41,9 @@ public final class Presentation implements IPresentation {
     private static final String NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private static final String NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static final String REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+    /** The classic comments relationship; the modern one also ends in {@code /comments}. */
+    private static final String REL_TYPE_COMMENTS =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
 
     private final OpcPackage pkg;
     private final DocumentProperties documentProperties;
@@ -391,9 +394,11 @@ public final class Presentation implements IPresentation {
     private void loadComments() {
         for (int slideIdx = 0; slideIdx < slides.size(); slideIdx++) {
             Slide slide = slides.getInternalList().get(slideIdx);
-            int slideNumber = slideFileNumberOf(slide.getSlidePartUri(), slideIdx + 1);
-            String partUri = "ppt/comments/comment" + slideNumber + ".xml";
-            Document doc = pkg.parseXml(partUri);
+            // The slide's comments are the part its relationship names. Pairing
+            // commentN.xml with slideN.xml by number reads another slide's comments
+            // whenever a producer numbered them differently.
+            String partUri = relatedPartOf(slide.getSlidePartUri(), REL_TYPE_COMMENTS);
+            Document doc = partUri == null ? null : pkg.parseXml(partUri);
             if (doc == null) continue;
             var slideComments = new ArrayList<Comment>();
             var identifiers = new ArrayList<ThreadedCommentsPart.ParentRef>();
@@ -432,7 +437,7 @@ public final class Presentation implements IPresentation {
                 }
             }
             if (!restoreCommentThreadsFromClassicList(slideComments, identifiers, parentRefs)) {
-                restoreCommentThreads(slideNumber, slideComments);
+                restoreCommentThreads(slide.getSlidePartUri(), slideComments);
             }
         }
     }
@@ -485,11 +490,11 @@ public final class Presentation implements IPresentation {
      * saved with threads reads back as unrelated comments — the same loss the
      * save path used to have.</p>
      *
-     * @param slideNumber   the slide part number
+     * @param slidePartUri  the slide's part name
      * @param slideComments the slide's comments, in the order the classic part lists them
      */
-    private void restoreCommentThreads(int slideNumber, List<Comment> slideComments) {
-        List<Integer> parents = ThreadedCommentsPart.readParentIndices(pkg, slideNumber);
+    private void restoreCommentThreads(String slidePartUri, List<Comment> slideComments) {
+        List<Integer> parents = ThreadedCommentsPart.readParentIndices(pkg, slidePartUri);
         if (parents.size() != slideComments.size()) {
             return;
         }
@@ -721,6 +726,26 @@ public final class Presentation implements IPresentation {
         return null;
     }
 
+    /**
+     * Returns the part a part is related to through its first internal relationship of a type.
+     *
+     * @param partUri the part whose relationships are read; may be {@code null}
+     * @param relType the full relationship type URI
+     * @return the related part name, or {@code null} if there is no such relationship
+     */
+    private String relatedPartOf(String partUri, String relType) {
+        if (partUri == null) {
+            return null;
+        }
+        for (var rel : new RelsHelper(pkg, partUri).getAllRelationships()) {
+            if (relType.equals(rel.type()) && !"External".equals(rel.targetMode())) {
+                return org.aspose.slides.foss.internal.pptx.SlidePart
+                        .resolveTargetStatic(partUri, rel.target());
+            }
+        }
+        return null;
+    }
+
     private int countParagraphs(String partUri) {
         Document doc = pkg.parseXml(partUri);
         return doc == null ? 0 : doc.getElementsByTagNameNS(NS_A, "p").getLength();
@@ -812,17 +837,20 @@ public final class Presentation implements IPresentation {
                     }
                 }
             }
-            // Name the comments part after the slide part that owns it, not after the
-            // slide's position: the two differ once slides have been added or removed.
+            // The slide's comments part is the one its relationship names, whatever its
+            // number; only a slide that has none gets a new name.
             String slidePartUri = slide.getSlidePartUri();
             int slideNumber = slideFileNumberOf(slidePartUri, slideIdx + 1);
-            String partUri = "ppt/comments/comment" + slideNumber + ".xml";
+            String related = relatedPartOf(slidePartUri, REL_TYPE_COMMENTS);
             if (slideComments.isEmpty()) {
                 // The relationship and the content-type Override go with the part.
-                pkg.removePartCascading(partUri, slidePartUri);
-                ThreadedCommentsPart.delete(pkg, slidePartUri, slideNumber);
+                if (related != null) {
+                    pkg.removePartCascading(related, slidePartUri);
+                }
+                ThreadedCommentsPart.delete(pkg, slidePartUri);
                 continue;
             }
+            String partUri = related != null ? related : newCommentsPartName(slideNumber);
             Document doc = OpcPackage.newDocument();
             Element root = doc.createElementNS(NS_P, "p:cmLst");
             doc.appendChild(root);
@@ -862,7 +890,9 @@ public final class Presentation implements IPresentation {
             ctm.save();
 
             // Add slide relationship to comments
-            addSlideCommentRelationship(slideNumber);
+            if (related == null) {
+                addSlideCommentRelationship(slidePartUri, partUri);
+            }
 
             // A reply has nowhere to live on the classic <p:cm>, so the threads
             // are written to the modern part beside it.
@@ -977,17 +1007,24 @@ public final class Presentation implements IPresentation {
         rels.save();
     }
 
-    /** Relates a slide to its classic comment part, if it is not related already. */
-    private void addSlideCommentRelationship(int slideNumber) {
-        String type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
-        var rels = new RelsHelper(pkg, "ppt/slides/slide" + slideNumber + ".xml");
-        boolean present = rels.getAllRelationships().stream()
-                .anyMatch(rel -> type.equals(rel.type()));
-        if (present) {
-            return;
-        }
-        rels.addRelationship(type, "../comments/comment" + slideNumber + ".xml");
+    /** Relates a slide to its classic comment part. */
+    private void addSlideCommentRelationship(String slidePartUri, String commentsPartUri) {
+        var rels = new RelsHelper(pkg, slidePartUri);
+        rels.addRelationship(REL_TYPE_COMMENTS, org.aspose.slides.foss.internal.pptx.SlidePart
+                .computeRelativeTarget(slidePartUri, commentsPartUri));
         rels.save();
+    }
+
+    /**
+     * Picks an unused name for a new classic comments part: {@code commentN.xml} for
+     * {@code slideN.xml} when that name is free, otherwise the lowest free number.
+     */
+    private String newCommentsPartName(int slideNumber) {
+        String name = "ppt/comments/comment" + slideNumber + ".xml";
+        for (int number = 1; pkg.hasPart(name); number++) {
+            name = "ppt/comments/comment" + number + ".xml";
+        }
+        return name;
     }
 
     // ---- Public API ----

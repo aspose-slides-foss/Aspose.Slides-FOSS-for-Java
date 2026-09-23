@@ -47,9 +47,10 @@ public final class Slide implements ISlide {
     Slide(Presentation presentation, int index) {
         this.presentation = presentation;
         this.index = index;
-        this.notesSlideManager = new NotesSlideManager(this, presentation.getPackage());
         loadShapes();
         loadHiddenState();
+        // After loadShapes, which sets the part name the notes are found from.
+        this.notesSlideManager = new NotesSlideManager(this, presentation.getPackage());
     }
 
     /**

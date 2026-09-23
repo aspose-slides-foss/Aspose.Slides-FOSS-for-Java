@@ -111,6 +111,33 @@ public final class ThreadedCommentsPart {
     }
 
     /**
+     * Returns the threaded-comment part a slide is related to.
+     *
+     * <p>Found through the slide's relationships, never by its number: a part is whatever the
+     * relationship names, and a cloned slide's part carries whatever number was free.</p>
+     *
+     * @param pkg          the package
+     * @param slidePartUri the part name of the slide
+     * @return the related part name, or {@code null} if the slide has none
+     */
+    public static String relatedPartName(OpcPackage pkg, String slidePartUri) {
+        for (var rel : new RelsHelper(pkg, slidePartUri).getAllRelationships()) {
+            if (REL_TYPE.equals(rel.type()) && !"External".equals(rel.targetMode())) {
+                return SlidePart.resolveTargetStatic(slidePartUri, rel.target());
+            }
+        }
+        return null;
+    }
+
+    private static String newPartName(OpcPackage pkg, int slideNumber) {
+        String preferred = partName(slideNumber);
+        for (int number = 1; pkg.hasPart(preferred); number++) {
+            preferred = partName(number);
+        }
+        return preferred;
+    }
+
+    /**
      * Returns the stable GUID identifying an author.
      *
      * @param name     the author's name
@@ -142,12 +169,13 @@ public final class ThreadedCommentsPart {
      */
     public static void write(OpcPackage pkg, String slidePartUri, int slideNumber,
                              List<Entry> entries) {
-        String partUri = partName(slideNumber);
         boolean anyThread = entries.stream().anyMatch(e -> e.parentIndex() >= 0);
         if (!anyThread) {
-            delete(pkg, slidePartUri, slideNumber);
+            delete(pkg, slidePartUri);
             return;
         }
+        String related = relatedPartName(pkg, slidePartUri);
+        String partUri = related != null ? related : newPartName(pkg, slideNumber);
 
         List<String> ids = new ArrayList<>(entries.size());
         for (int i = 0; i < entries.size(); i++) {
@@ -183,12 +211,9 @@ public final class ThreadedCommentsPart {
         contentTypes.addOverride("/" + partUri, CONTENT_TYPE);
         contentTypes.save();
 
-        var rels = new RelsHelper(pkg, slidePartUri);
-        boolean present = rels.getAllRelationships().stream()
-                .anyMatch(rel -> REL_TYPE.equals(rel.type()));
-        if (!present) {
-            rels.addRelationship(REL_TYPE, "../threadedComments/threadedComment"
-                    + slideNumber + ".xml");
+        if (related == null) {
+            var rels = new RelsHelper(pkg, slidePartUri);
+            rels.addRelationship(REL_TYPE, SlidePart.computeRelativeTarget(slidePartUri, partUri));
             rels.save();
         }
     }
@@ -326,11 +351,10 @@ public final class ThreadedCommentsPart {
      *
      * @param pkg          the package
      * @param slidePartUri the part name of the slide
-     * @param slideNumber  the slide part number
      */
-    public static void delete(OpcPackage pkg, String slidePartUri, int slideNumber) {
-        String partUri = partName(slideNumber);
-        if (!pkg.hasPart(partUri)) {
+    public static void delete(OpcPackage pkg, String slidePartUri) {
+        String partUri = relatedPartName(pkg, slidePartUri);
+        if (partUri == null) {
             return;
         }
         pkg.removePartCascading(partUri, slidePartUri);
@@ -378,14 +402,15 @@ public final class ThreadedCommentsPart {
     /**
      * Reads back which comment each comment on a slide replies to.
      *
-     * @param pkg         the package
-     * @param slideNumber the slide part number
+     * @param pkg          the package
+     * @param slidePartUri the part name of the slide
      * @return for each comment, in the order the part lists them, the index of
      *         the comment it replies to, or {@code -1}; empty when the slide has
      *         no threaded-comment part
      */
-    public static List<Integer> readParentIndices(OpcPackage pkg, int slideNumber) {
-        Document doc = pkg.parseXml(partName(slideNumber));
+    public static List<Integer> readParentIndices(OpcPackage pkg, String slidePartUri) {
+        String partUri = relatedPartName(pkg, slidePartUri);
+        Document doc = partUri == null ? null : pkg.parseXml(partUri);
         if (doc == null) {
             return List.of();
         }

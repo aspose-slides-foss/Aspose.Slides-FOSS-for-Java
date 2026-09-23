@@ -31,12 +31,28 @@ public final class NotesSlideManager implements INotesSlideManager {
     NotesSlideManager(Slide slide, OpcPackage pkg) {
         this.slide = slide;
         this.pkg = pkg;
-        // Check if notes already exist
-        String notesUri = getNotesPartUri();
-        if (pkg.hasPart(notesUri)) {
+        // The slide's notes are the part its relationship names. Pairing notesSlideN.xml
+        // with slideN.xml by number reads, overwrites or deletes another slide's notes
+        // whenever a producer numbered them differently.
+        String notesUri = relatedNotesPartUri();
+        if (notesUri != null && pkg.hasPart(notesUri)) {
             var notesPart = new NotesSlidePart(pkg, notesUri);
             this.notesSlide = new NotesSlide(slide, notesPart);
         }
+    }
+
+    /** Returns the notes part the slide is related to, or {@code null} if it has none. */
+    private String relatedNotesPartUri() {
+        String slidePartUri = slide.getSlidePartUri();
+        if (slidePartUri == null) {
+            return null;
+        }
+        for (var rel : new RelsHelper(pkg, slidePartUri).getAllRelationships()) {
+            if (NOTES_SLIDE_REL_TYPE.equals(rel.type()) && !"External".equals(rel.targetMode())) {
+                return SlidePart.resolveTargetStatic(slidePartUri, rel.target());
+            }
+        }
+        return null;
     }
 
     /** The parent slide for relationship-based initialization (may be {@code null}). */
@@ -141,6 +157,12 @@ public final class NotesSlideManager implements INotesSlideManager {
         var notesPart = NotesSlidePart.createEmpty(pkg, slidePartUri);
 
         var slideRels = new RelsHelper(pkg, slidePartUri);
+        // A notes relationship here can only be one whose part is missing; it is replaced.
+        for (var rel : slideRels.getAllRelationships()) {
+            if (NOTES_SLIDE_REL_TYPE.equals(rel.type())) {
+                slideRels.removeRelationship(rel.id());
+            }
+        }
         slideRels.addRelationship(NOTES_SLIDE_REL_TYPE,
                 SlidePart.computeRelativeTarget(slidePartUri, notesPart.getPartName()));
         slideRels.save();
@@ -159,9 +181,5 @@ public final class NotesSlideManager implements INotesSlideManager {
         // readers and PowerPoint reject.
         pkg.removePartCascading(notesSlide.getNotesPart().getPartName(), slide.getSlidePartUri());
         notesSlide = null;
-    }
-
-    private String getNotesPartUri() {
-        return "ppt/notesSlides/notesSlide" + (slide.getIndex() + 1) + ".xml";
     }
 }

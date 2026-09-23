@@ -79,7 +79,9 @@ public final class Fixtures {
      *
      * <p>The notes are written by Apache POI, so the deck carries a notes master and notes slides
      * wired the way another producer wires them. POI names each notes slide after the slide part
-     * it annotates.</p>
+     * it annotates. POI also relates every notes slide from the presentation part, which
+     * PowerPoint does not do; those relationships are removed, so the deck has the shape
+     * PowerPoint writes.</p>
      *
      * @param directory where to write it
      * @param fileName  the file name, including the extension
@@ -91,7 +93,7 @@ public final class Fixtures {
      */
     public static Path authoredDeckWithNotes(Path directory, String fileName, String[] titles,
                                              String[] notes) throws IOException {
-        Path target = directory.resolve(fileName);
+        Path written = directory.resolve("poi-" + fileName);
         try (XMLSlideShow show = new XMLSlideShow()) {
             XSLFSlideMaster master = show.getSlideMasters().get(0);
             XSLFSlideLayout layout = master.getLayout(SlideLayout.TITLE_ONLY);
@@ -110,10 +112,12 @@ public final class Fixtures {
                     }
                 }
             }
-            try (OutputStream out = Files.newOutputStream(target)) {
+            try (OutputStream out = Files.newOutputStream(written)) {
                 show.write(out);
             }
         }
-        return target;
+        return ZipSurgery.copyWithReplacement(written, directory.resolve(fileName),
+                "ppt/_rels/presentation.xml.rels",
+                rels -> rels.replaceAll("<Relationship [^>]*relationships/notesSlide\"[^>]*/>", ""));
     }
 }

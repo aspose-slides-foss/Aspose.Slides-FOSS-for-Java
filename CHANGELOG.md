@@ -24,6 +24,18 @@ dated when that version is released.
   `ppt/notesMasters/notesMaster1.xml` and one more theme part to the saved file, and the
   relationship from the slide to its notes now has an ordinary `rIdN` id instead of `rId_notes`.
   Covered by `NotesMasterConformanceTest`.
+- **Notes and comments are found through the slide's relationships, not by part number.** The
+  library paired `notesSlideN.xml` and `commentN.xml` with `slideN.xml` by their numbers. Other
+  producers number these parts independently — a deck whose first slide has no notes commonly
+  keeps the second slide's notes in `notesSlide1.xml` — and on such a deck the library reported
+  one slide's notes or comments as another's, `addNotesSlide()` wrote into another slide's notes,
+  and removing notes or a comment deleted another slide's part and left that slide pointing at a
+  part that was gone, which PowerPoint refuses to open. Saving after cloning a slide whose
+  comments had been loaded from the file could break the file the same way. Each slide's notes,
+  comments and threaded-comment parts are now the ones its relationships name. A new part still
+  takes the slide's number when that name is free, and the lowest free number otherwise. A cloned
+  slide is still saved without the source slide's comments. Covered by
+  `PartNumberingConformanceTest`.
 
 ## [26.8.0] - 2026-08-16
 

@@ -245,6 +245,79 @@ public final class PackageAssertions {
                 .isEqualTo(expected);
     }
 
+    /**
+     * Returns the slide parts in presentation order: each {@code p:sldId} of
+     * {@code p:sldIdLst}, resolved through {@code ppt/_rels/presentation.xml.rels}.
+     *
+     * @param pkg the package
+     * @return the slide part names, in the order the presentation lists them
+     * @throws IOException if a part cannot be read
+     */
+    public static List<String> slidePartNames(PptxPackage pkg) throws IOException {
+        List<String> parts = new ArrayList<>();
+        for (Element sldId : selectNodes(pkg, "ppt/presentation.xml", "//p:sldIdLst/p:sldId")) {
+            parts.add(relatedPartById(pkg, "ppt/presentation.xml",
+                    sldId.getAttributeNS(PptxPackage.NS_REL, "id")));
+        }
+        return parts;
+    }
+
+    // ---------------------------------------------------------------- relationships
+
+    /**
+     * Returns the parts a part is related to through internal relationships of one type.
+     *
+     * @param pkg      the package
+     * @param partName the part whose {@code .rels} is read
+     * @param relType  the full relationship type URI
+     * @return the resolved target part names, in declaration order; empty if there are none
+     * @throws IOException if a part cannot be read
+     */
+    public static List<String> relatedParts(PptxPackage pkg, String partName, String relType)
+            throws IOException {
+        List<String> targets = new ArrayList<>();
+        String relsName = PptxPackage.relsPartNameFor(partName);
+        if (!pkg.hasPart(relsName)) {
+            return targets;
+        }
+        NodeList rels = pkg.root(relsName)
+                .getElementsByTagNameNS(PptxPackage.NS_RELS_PART, "Relationship");
+        for (int i = 0; i < rels.getLength(); i++) {
+            Element rel = (Element) rels.item(i);
+            if (relType.equals(rel.getAttribute("Type"))
+                    && !"External".equals(rel.getAttribute("TargetMode"))) {
+                targets.add(PptxPackage.resolveTarget(partName, rel.getAttribute("Target")));
+            }
+        }
+        return targets;
+    }
+
+    /**
+     * Resolves one relationship id of a part to the part it targets.
+     *
+     * @param pkg      the package
+     * @param partName the part whose {@code .rels} is read
+     * @param relId    the {@code Relationship Id}
+     * @return the resolved target part name, or {@code null} if the id is not declared
+     * @throws IOException if a part cannot be read
+     */
+    public static String relatedPartById(PptxPackage pkg, String partName, String relId)
+            throws IOException {
+        String relsName = PptxPackage.relsPartNameFor(partName);
+        if (!pkg.hasPart(relsName)) {
+            return null;
+        }
+        NodeList rels = pkg.root(relsName)
+                .getElementsByTagNameNS(PptxPackage.NS_RELS_PART, "Relationship");
+        for (int i = 0; i < rels.getLength(); i++) {
+            Element rel = (Element) rels.item(i);
+            if (relId.equals(rel.getAttribute("Id"))) {
+                return PptxPackage.resolveTarget(partName, rel.getAttribute("Target"));
+            }
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------- XML shape
 
     /**

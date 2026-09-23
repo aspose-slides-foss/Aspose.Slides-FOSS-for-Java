@@ -67,6 +67,14 @@ public final class SchemaOrder {
     /** {@code CT_TextBody}: {@code bodyPr, lstStyle?, p+}. */
     private static final String[] TX_BODY = {"bodyPr", "lstStyle", "p"};
 
+    /** {@code CT_Presentation}, the root of {@code ppt/presentation.xml}. */
+    private static final String[] P_PRESENTATION = {
+            "sldMasterIdLst", "notesMasterIdLst", "handoutMasterIdLst", "sldIdLst",
+            "sldSz", "notesSz", "smartTags", "embeddedFontLst", "custShowLst",
+            "photoAlbum", "custDataLst", "kinsoku", "defaultTextStyle",
+            "modifyVerifier", "extLst",
+    };
+
     private static final Map<String, List<String>> ORDERS = orders();
 
     private static Map<String, List<String>> orders() {
@@ -77,6 +85,7 @@ public final class SchemaOrder {
         m.put("sp3d", Arrays.asList(A_SP3D));
         m.put("p", Arrays.asList(A_P));
         m.put("txBody", Arrays.asList(TX_BODY));
+        m.put("presentation", Arrays.asList(P_PRESENTATION));
         return Collections.unmodifiableMap(m);
     }
 

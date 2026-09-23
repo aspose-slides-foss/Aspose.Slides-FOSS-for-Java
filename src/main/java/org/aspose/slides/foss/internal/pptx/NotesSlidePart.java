@@ -347,21 +347,17 @@ public final class NotesSlidePart {
     /**
      * Creates a new empty notes slide in the package for a given slide.
      *
+     * <p>The notes slide is related back to its slide and to the package's notes master, which
+     * is created and registered first if the package has none: ECMA-376 Part 1 §13.3.5 requires
+     * a notes slide to have exactly one notes master. The relationship from the slide to the
+     * notes slide is the caller's to add.</p>
+     *
      * @param pkg           the OPC package
      * @param slidePartName the part name of the owning slide
      * @return the newly created {@code NotesSlidePart}
      */
     public static NotesSlidePart createEmpty(OpcPackage pkg, String slidePartName) {
-        int nextNum = 1;
-        String partName;
-        while (true) {
-            String candidate = "ppt/notesSlides/notesSlide" + nextNum + ".xml";
-            if (!pkg.hasPart(candidate)) {
-                partName = candidate;
-                break;
-            }
-            nextNum++;
-        }
+        String partName = newPartName(pkg, slidePartName);
 
         byte[] notesXml = buildNotesXml();
         pkg.setPartBytes(partName, notesXml);
@@ -381,16 +377,14 @@ public final class NotesSlidePart {
         rel1.setAttribute("Target", slideRelative);
         relsRoot.appendChild(rel1);
 
-        // Relationship: notes slide → notes master (if present)
-        String notesMasterPartName = findNotesMaster(pkg);
-        if (notesMasterPartName != null) {
-            String masterRelative = computeRelativeTarget(partName, notesMasterPartName);
-            Element rel2 = relsDoc.createElementNS(REL_NS, "Relationship");
-            rel2.setAttribute("Id", "rId2");
-            rel2.setAttribute("Type", REL_TYPE_NOTES_MASTER);
-            rel2.setAttribute("Target", masterRelative);
-            relsRoot.appendChild(rel2);
-        }
+        // Relationship: notes slide → notes master
+        String notesMasterPartName = NotesMasterPart.ensureInPackage(pkg);
+        String masterRelative = computeRelativeTarget(partName, notesMasterPartName);
+        Element rel2 = relsDoc.createElementNS(REL_NS, "Relationship");
+        rel2.setAttribute("Id", "rId2");
+        rel2.setAttribute("Type", REL_TYPE_NOTES_MASTER);
+        rel2.setAttribute("Target", masterRelative);
+        relsRoot.appendChild(rel2);
 
         pkg.serializeXml(relsUri, relsDoc);
 
@@ -398,6 +392,34 @@ public final class NotesSlidePart {
         addContentTypeOverride(pkg, partName, CONTENT_TYPE_NOTES_SLIDE);
 
         return new NotesSlidePart(pkg, partName);
+    }
+
+    /**
+     * Picks an unused notes slide part name for a slide.
+     *
+     * <p>{@code notesSlideN.xml} for {@code slideN.xml} when that name is free, which is what
+     * readers that pair the two by number expect; otherwise the lowest free number. The name
+     * carries no meaning: the notes slide is found through the slide's relationships.</p>
+     *
+     * @param pkg           the package
+     * @param slidePartName the part name of the owning slide
+     * @return a part name no part in the package has
+     */
+    static String newPartName(OpcPackage pkg, String slidePartName) {
+        var matcher = java.util.regex.Pattern.compile("ppt/slides/slide(\\d+)\\.xml")
+                .matcher(slidePartName);
+        if (matcher.matches()) {
+            String preferred = "ppt/notesSlides/notesSlide" + matcher.group(1) + ".xml";
+            if (!pkg.hasPart(preferred)) {
+                return preferred;
+            }
+        }
+        for (int number = 1; ; number++) {
+            String candidate = "ppt/notesSlides/notesSlide" + number + ".xml";
+            if (!pkg.hasPart(candidate)) {
+                return candidate;
+            }
+        }
     }
 
     /**

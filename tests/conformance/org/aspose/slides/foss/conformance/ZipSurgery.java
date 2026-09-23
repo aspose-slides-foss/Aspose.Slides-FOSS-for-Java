@@ -16,7 +16,8 @@ import java.util.zip.ZipOutputStream;
  * <p>Used by {@link HarnessCalibrationTest}, because a rule that has never been shown to fail is
  * not evidence of anything, so each rule is pointed at a package damaged in exactly the way it
  * claims to detect — and by {@link UntrustedInputConformanceTest}, which needs a package no
- * supported API can write.</p>
+ * supported API can write. The part-numbering and layout-order tests use it to reproduce, in a
+ * valid package, the numbering and relationship order other producers write.</p>
  */
 final class ZipSurgery {
 
@@ -53,6 +54,58 @@ final class ZipSurgery {
         }, out -> {
         });
         return target;
+    }
+
+    /**
+     * Copies {@code source} to {@code target} with one part renamed, keeping the package valid.
+     *
+     * <p>The part's own {@code .rels} moves with it, and every relationship target and
+     * content-type {@code Override} that names it is rewritten. References are matched as
+     * {@code <directory>/<file name>"}, which covers the {@code ../dir/name.xml} targets and the
+     * {@code /ppt/dir/name.xml} part names these fixtures use. Several producers number parts
+     * independently of slide numbers, and this reproduces that without a binary fixture.</p>
+     */
+    static Path copyWithRenamedPart(Path source, Path target, String partName, String newPartName)
+            throws IOException {
+        String oldRels = PptxPackage.relsPartNameFor(partName);
+        String newRels = PptxPackage.relsPartNameFor(newPartName);
+        String oldRef = lastTwoSegments(partName) + "\"";
+        String newRef = lastTwoSegments(newPartName) + "\"";
+        try (ZipFile in = new ZipFile(source.toFile());
+             OutputStream fileOut = Files.newOutputStream(target);
+             ZipOutputStream out = new ZipOutputStream(fileOut)) {
+            var entries = in.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                byte[] bytes;
+                try (var stream = in.getInputStream(entry)) {
+                    bytes = stream.readAllBytes();
+                }
+                String name = entry.getName();
+                if (name.endsWith(".rels") || name.equals(PptxPackage.CONTENT_TYPES_PART)) {
+                    bytes = new String(bytes, StandardCharsets.UTF_8).replace(oldRef, newRef)
+                            .getBytes(StandardCharsets.UTF_8);
+                }
+                if (name.equals(partName)) {
+                    name = newPartName;
+                } else if (name.equals(oldRels)) {
+                    name = newRels;
+                }
+                out.putNextEntry(new ZipEntry(name));
+                out.write(bytes);
+                out.closeEntry();
+            }
+        }
+        return target;
+    }
+
+    private static String lastTwoSegments(String partName) {
+        int last = partName.lastIndexOf('/');
+        int previous = partName.lastIndexOf('/', last - 1);
+        return partName.substring(previous + 1);
     }
 
     private static void rewrite(Path source, Path target, EntryEdit edit, Extra extra)

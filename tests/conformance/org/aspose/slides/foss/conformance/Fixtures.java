@@ -1,7 +1,9 @@
 package org.aspose.slides.foss.conformance;
 
+import org.apache.poi.sl.usermodel.Placeholder;
 import org.apache.poi.xslf.usermodel.SlideLayout;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFNotes;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFSlideLayout;
 import org.apache.poi.xslf.usermodel.XSLFSlideMaster;
@@ -63,6 +65,49 @@ public final class Fixtures {
                 XSLFTextShape placeholder = slide.getPlaceholder(0);
                 if (placeholder != null) {
                     placeholder.setText(title);
+                }
+            }
+            try (OutputStream out = Files.newOutputStream(target)) {
+                show.write(out);
+            }
+        }
+        return target;
+    }
+
+    /**
+     * Writes a multi-slide deck like {@link #authoredDeck}, with speaker notes on some slides.
+     *
+     * <p>The notes are written by Apache POI, so the deck carries a notes master and notes slides
+     * wired the way another producer wires them. POI names each notes slide after the slide part
+     * it annotates.</p>
+     *
+     * @param directory where to write it
+     * @param fileName  the file name, including the extension
+     * @param titles    one title per slide; at least one
+     * @param notes     the notes text per slide, {@code null} for a slide without notes; the same
+     *                  length as {@code titles}
+     * @return the path written
+     * @throws IOException if the file cannot be written
+     */
+    public static Path authoredDeckWithNotes(Path directory, String fileName, String[] titles,
+                                             String[] notes) throws IOException {
+        Path target = directory.resolve(fileName);
+        try (XMLSlideShow show = new XMLSlideShow()) {
+            XSLFSlideMaster master = show.getSlideMasters().get(0);
+            XSLFSlideLayout layout = master.getLayout(SlideLayout.TITLE_ONLY);
+            for (int i = 0; i < titles.length; i++) {
+                XSLFSlide slide = show.createSlide(layout);
+                XSLFTextShape placeholder = slide.getPlaceholder(0);
+                if (placeholder != null) {
+                    placeholder.setText(titles[i]);
+                }
+                if (notes[i] != null) {
+                    XSLFNotes notesSlide = show.getNotesSlide(slide);
+                    for (XSLFTextShape shape : notesSlide.getPlaceholders()) {
+                        if (shape.getTextType() == Placeholder.BODY) {
+                            shape.setText(notes[i]);
+                        }
+                    }
                 }
             }
             try (OutputStream out = Files.newOutputStream(target)) {

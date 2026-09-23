@@ -6,9 +6,24 @@ coordinates `org.aspose:aspose-slides-foss`.
 
 ## Unreleased
 
-Nothing yet. A change a caller can observe goes here, under a `### Added`, `### Changed`,
+A change a caller can observe goes here, under a `### Added`, `### Changed`,
 `### Fixed`, `### Removed` or `### Security` heading, and the section is renamed to the version and
 dated when that version is released.
+
+### Fixed
+
+- **Speaker notes are wired to a notes master and to their slide.** `addNotesSlide()` wrote the
+  notes slide as a bare part with no relationships of its own: nothing led from it back to its
+  slide, and the presentation had no notes master, although ECMA-376 requires every notes slide
+  to have one. PowerPoint still showed the text, but a reader that follows the relationships
+  found notes that belong to nothing, and the notes placeholders had no master to inherit their
+  formatting from. A notes slide is now related to its slide and to the presentation's notes
+  master. If the presentation has no notes master, a minimal one is added with its own copy of
+  the presentation's theme, a content-type override and a `p:notesMasterIdLst` entry; a deck that
+  already has one keeps it. What a caller can see: the first notes added to a deck add
+  `ppt/notesMasters/notesMaster1.xml` and one more theme part to the saved file, and the
+  relationship from the slide to its notes now has an ordinary `rIdN` id instead of `rId_notes`.
+  Covered by `NotesMasterConformanceTest`.
 
 ## [26.8.0] - 2026-08-16
 

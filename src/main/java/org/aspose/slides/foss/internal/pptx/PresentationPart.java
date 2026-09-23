@@ -260,6 +260,32 @@ public final class PresentationPart {
     }
 
     /**
+     * Registers the notes master in {@code <p:notesMasterIdLst>}, replacing any entry there.
+     *
+     * <p>A presentation has at most one notes master. The list is created, if it is missing,
+     * at the position {@code CT_Presentation} requires — after {@code sldMasterIdLst} and
+     * before {@code sldIdLst} — since a list appended after the slide list is a schema
+     * error, not a formatting preference.</p>
+     *
+     * @param relId the id of the presentation's relationship to the notes master
+     */
+    public void setNotesMasterReference(String relId) {
+        NodeList lists = root.getElementsByTagNameNS(NS_P, "notesMasterIdLst");
+        Element idLst;
+        if (lists.getLength() > 0) {
+            idLst = (Element) lists.item(0);
+            while (idLst.getFirstChild() != null) {
+                idLst.removeChild(idLst.getFirstChild());
+            }
+        } else {
+            idLst = SchemaOrder.insert(root, doc.createElementNS(NS_P, "p:notesMasterIdLst"));
+        }
+        Element entry = doc.createElementNS(NS_P, "p:notesMasterId");
+        entry.setAttributeNS(NS_R, "r:id", relId);
+        idLst.appendChild(entry);
+    }
+
+    /**
      * Adds a new slide reference to the presentation.
      *
      * @param relId   the relationship ID for the slide

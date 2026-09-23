@@ -4,6 +4,7 @@ import org.aspose.slides.foss.internal.opc.Relationship;
 import org.aspose.slides.foss.internal.opc.RelationshipsManager;
 import org.aspose.slides.foss.internal.pptx.NotesSlidePart;
 import org.aspose.slides.foss.internal.pptx.OpcPackage;
+import org.aspose.slides.foss.internal.pptx.RelsHelper;
 import org.aspose.slides.foss.internal.pptx.SlidePart;
 
 import java.util.List;
@@ -13,6 +14,9 @@ import java.util.Optional;
  * Manages the notes slide for a given slide.
  */
 public final class NotesSlideManager implements INotesSlideManager {
+
+    private static final String NOTES_SLIDE_REL_TYPE =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
 
     private final Slide slide;
     private final OpcPackage pkg;
@@ -120,21 +124,26 @@ public final class NotesSlideManager implements INotesSlideManager {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The notes slide is written with the relationships a reader needs to place it: from
+     * the slide to the notes slide, back from the notes slide to the slide, and from the notes
+     * slide to the presentation's notes master, which is created if the presentation has
+     * none.</p>
+     */
     @Override
     public INotesSlide addNotesSlide() {
         if (notesSlide != null) {
             return notesSlide;
         }
-        String notesUri = getNotesPartUri();
-        var notesPart = new NotesSlidePart(pkg, notesUri);
-        int slideNumber = slide.getIndex() + 1;
-        notesPart.ensurePartExists(slideNumber);
+        String slidePartUri = slide.getSlidePartUri();
+        var notesPart = NotesSlidePart.createEmpty(pkg, slidePartUri);
 
-        // Add content type override
-        addContentTypeOverride(slideNumber);
-
-        // Add relationship from slide to notes
-        addSlideNotesRelationship(slideNumber);
+        var slideRels = new RelsHelper(pkg, slidePartUri);
+        slideRels.addRelationship(NOTES_SLIDE_REL_TYPE,
+                SlidePart.computeRelativeTarget(slidePartUri, notesPart.getPartName()));
+        slideRels.save();
 
         notesSlide = new NotesSlide(slide, notesPart);
         return notesSlide;
@@ -148,69 +157,11 @@ public final class NotesSlideManager implements INotesSlideManager {
         // Removing only the bytes would leave the slide's notesSlide relationship and the
         // content-type Override pointing at a part that is no longer there, which strict
         // readers and PowerPoint reject.
-        pkg.removePartCascading(getNotesPartUri(), slide.getSlidePartUri());
+        pkg.removePartCascading(notesSlide.getNotesPart().getPartName(), slide.getSlidePartUri());
         notesSlide = null;
     }
 
     private String getNotesPartUri() {
         return "ppt/notesSlides/notesSlide" + (slide.getIndex() + 1) + ".xml";
-    }
-
-    private void addContentTypeOverride(int slideNumber) {
-        // Parse [Content_Types].xml and add override for notes slide
-        var doc = pkg.parseXml("[Content_Types].xml");
-        if (doc == null) return;
-
-        var root = doc.getDocumentElement();
-        String partName = "/ppt/notesSlides/notesSlide" + slideNumber + ".xml";
-
-        // Check if already exists
-        var overrides = root.getElementsByTagName("Override");
-        for (int i = 0; i < overrides.getLength(); i++) {
-            var el = (org.w3c.dom.Element) overrides.item(i);
-            if (partName.equals(el.getAttribute("PartName"))) {
-                return;
-            }
-        }
-
-        var override = doc.createElement("Override");
-        override.setAttribute("PartName", partName);
-        override.setAttribute("ContentType",
-                "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml");
-        root.appendChild(override);
-        pkg.serializeXml("[Content_Types].xml", doc);
-    }
-
-    private void addSlideNotesRelationship(int slideNumber) {
-        String relsUri = "ppt/slides/_rels/slide" + slideNumber + ".xml.rels";
-        String type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
-        String relNs = "http://schemas.openxmlformats.org/package/2006/relationships";
-
-        var doc = pkg.parseXml(relsUri);
-        if (doc == null) {
-            doc = OpcPackage.newDocument();
-            var root = doc.createElementNS(relNs, "Relationships");
-            doc.appendChild(root);
-            var rel = doc.createElementNS(relNs, "Relationship");
-            rel.setAttribute("Id", "rId_notes");
-            rel.setAttribute("Type", type);
-            rel.setAttribute("Target", "../notesSlides/notesSlide" + slideNumber + ".xml");
-            root.appendChild(rel);
-            pkg.serializeXml(relsUri, doc);
-            return;
-        }
-
-        var root = doc.getDocumentElement();
-        var rels = root.getElementsByTagName("Relationship");
-        for (int i = 0; i < rels.getLength(); i++) {
-            var rel = (org.w3c.dom.Element) rels.item(i);
-            if (type.equals(rel.getAttribute("Type"))) return;
-        }
-        var rel = doc.createElementNS(relNs, "Relationship");
-        rel.setAttribute("Id", "rId_notes");
-        rel.setAttribute("Type", type);
-        rel.setAttribute("Target", "../notesSlides/notesSlide" + slideNumber + ".xml");
-        root.appendChild(rel);
-        pkg.serializeXml(relsUri, doc);
     }
 }

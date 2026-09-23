@@ -26,6 +26,7 @@ public final class PresentationPart {
 
     private static final String NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
     private static final String NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static final String NS_P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main";
 
     private final OpcPackage pkg;
     private Document doc;
@@ -363,6 +364,16 @@ public final class PresentationPart {
                     sldIdLst.removeChild(el);
                     break;
                 }
+            }
+        }
+
+        // Sections (the p14:sectionLst extension) name their slides by this same id, so a
+        // removed slide has to leave its section too, or the list names a slide that is gone.
+        NodeList sectionEntries = root.getElementsByTagNameNS(NS_P14, "sldId");
+        for (int i = sectionEntries.getLength() - 1; i >= 0; i--) {
+            Element el = (Element) sectionEntries.item(i);
+            if (el.getAttribute("id").equals(String.valueOf(slideId))) {
+                el.getParentNode().removeChild(el);
             }
         }
 

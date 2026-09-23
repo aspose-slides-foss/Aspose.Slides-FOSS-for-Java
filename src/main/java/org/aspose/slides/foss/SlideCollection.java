@@ -350,7 +350,6 @@ public final class SlideCollection implements ISlideCollection {
                                      ILayoutSlide destLayout, IMasterSlide destMaster,
                                      boolean allowCloneMissingLayout) {
         OpcPackage pkg = getEffectivePackage();
-        PresentationPart presPart = getEffectivePresentationPart();
 
         // Get source package and part name. The clone is made from the source slide's bytes,
         // so any edit still held in its DOM has to reach the package first.
@@ -403,7 +402,9 @@ public final class SlideCollection implements ISlideCollection {
         String relId = presRels.addRelationship(REL_TYPE_SLIDE, relativeTarget);
         presRels.save();
 
-        // Add slide reference to presentation.xml
+        // Add slide reference to presentation.xml. Parsed only now: cloning notes can add a
+        // notes master, which writes presentation.xml, and an earlier parse would undo that.
+        PresentationPart presPart = getEffectivePresentationPart();
         presPart.addSlideReference(relId, null, index);
         presPart.save();
 

@@ -33,6 +33,10 @@ public final class SlidePart {
             "http://schemas.openxmlformats.org/package/2006/relationships";
     private static final String REL_TYPE_SLIDE_LAYOUT =
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
+    private static final String REL_TYPE_NOTES_SLIDE =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
+    private static final String REL_TYPE_SLIDE =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
 
     private SlidePart() {
         // utility class
@@ -102,6 +106,15 @@ public final class SlidePart {
             } else if ("External".equals(rel.targetMode())) {
                 String newRid = destRels.addRelationship(rel.type(), rel.target(), "External");
                 ridMapping.put(rel.id(), newRid);
+            } else if (REL_TYPE_NOTES_SLIDE.equals(rel.type())) {
+                String sourceNotes = resolveTargetStatic(sourcePartName, rel.target());
+                String destNotes = cloneNotesSlide(
+                        sourcePackage, sourceNotes, destPackage, destPartName);
+                if (destNotes != null) {
+                    String newRid = destRels.addRelationship(rel.type(),
+                            computeRelativeTarget(destPartName, destNotes));
+                    ridMapping.put(rel.id(), newRid);
+                }
             } else {
                 String sourceTarget = resolveTargetStatic(sourcePartName, rel.target());
                 String destTarget = cloneRelatedPart(
@@ -199,6 +212,74 @@ public final class SlidePart {
         }
 
         return destTarget;
+    }
+
+    /**
+     * Copies a notes slide for a cloned slide.
+     *
+     * <p>The notes slide's relationships are copied with their ids, so that every
+     * {@code r:id} in the notes still resolves, but two of them are re-pointed rather than
+     * copied: the one back to the slide, which must name the clone — a clone's notes that
+     * point at the source slide belong, to any reader, to the source — and the one to the
+     * notes master, which must name the destination package's notes master. The copy gets
+     * its own content-type override.</p>
+     *
+     * @param sourcePackage     the package holding the source notes slide
+     * @param sourceNotes       the part name of the source notes slide
+     * @param destPackage       the package receiving the clone
+     * @param destSlidePartName the part name of the cloned slide
+     * @return the part name of the copied notes slide, or {@code null} if the source part is
+     *         missing
+     */
+    private static String cloneNotesSlide(OpcPackage sourcePackage, String sourceNotes,
+                                          OpcPackage destPackage, String destSlidePartName) {
+        byte[] content = sourcePackage.getPartBytes(sourceNotes);
+        if (content == null) {
+            return null;
+        }
+        String destNotes = NotesSlidePart.newPartName(destPackage, destSlidePartName);
+        destPackage.setPartBytes(destNotes, content.clone());
+        String destRelsName = getRelsPartName(destNotes);
+        destPackage.removePart(destRelsName);
+
+        boolean hasSlide = false;
+        boolean hasMaster = false;
+        byte[] sourceRels = sourcePackage.getPartBytes(getRelsPartName(sourceNotes));
+        if (sourceRels != null) {
+            Document relsDoc = parseXml(sourceRels);
+            NodeList relElements = relsDoc.getDocumentElement()
+                    .getElementsByTagNameNS(REL_NS, "Relationship");
+            for (int i = 0; i < relElements.getLength(); i++) {
+                Element rel = (Element) relElements.item(i);
+                String type = rel.getAttribute("Type");
+                if (REL_TYPE_SLIDE.equals(type)) {
+                    rel.setAttribute("Target", computeRelativeTarget(destNotes, destSlidePartName));
+                    hasSlide = true;
+                } else if (NotesMasterPart.REL_TYPE.equals(type)) {
+                    rel.setAttribute("Target", computeRelativeTarget(destNotes,
+                            NotesMasterPart.ensureInPackage(destPackage)));
+                    hasMaster = true;
+                }
+            }
+            destPackage.serializeXml(destRelsName, relsDoc);
+        }
+        if (!hasSlide || !hasMaster) {
+            var rels = new RelsHelper(destPackage, destNotes);
+            if (!hasSlide) {
+                rels.addRelationship(REL_TYPE_SLIDE,
+                        computeRelativeTarget(destNotes, destSlidePartName));
+            }
+            if (!hasMaster) {
+                rels.addRelationship(NotesMasterPart.REL_TYPE, computeRelativeTarget(destNotes,
+                        NotesMasterPart.ensureInPackage(destPackage)));
+            }
+            rels.save();
+        }
+
+        var ctManager = new ContentTypesManager(destPackage);
+        ctManager.addOverride(destNotes, ContentTypesManager.CONTENT_TYPES.get("notes_slide"));
+        ctManager.save();
+        return destNotes;
     }
 
     /**

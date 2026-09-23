@@ -36,6 +36,19 @@ dated when that version is released.
   takes the slide's number when that name is free, and the lowest free number otherwise. A cloned
   slide is still saved without the source slide's comments. Covered by
   `PartNumberingConformanceTest`.
+- **A removed slide leaves its section.** Removing a slide — or leaving it out of a subset save —
+  deleted it from `p:sldIdLst` but left its id in the deck's section list (the `p14:sectionLst`
+  extension PowerPoint writes), which then named a slide the presentation no longer had. The id
+  is now removed from its section as well. A section whose last slide is removed stays, empty,
+  as it does in PowerPoint. Covered by `SlideDependentsConformanceTest`.
+- **A cloned slide's notes belong to the clone.** Cloning a slide with speaker notes copied the
+  notes slide with its relationships unchanged, so the copy still pointed back at the source
+  slide, had no content-type override, and — when cloned into another presentation — pointed at
+  a notes master that presentation did not have. The copied notes now point back at the clone,
+  at the destination's notes master (added if it has none) and carry their own content-type
+  override. Cloning into another presentation also no longer loses what the clone added to
+  `ppt/presentation.xml` before the new slide was registered. Covered by
+  `SlideDependentsConformanceTest`.
 
 ## [26.8.0] - 2026-08-16
 

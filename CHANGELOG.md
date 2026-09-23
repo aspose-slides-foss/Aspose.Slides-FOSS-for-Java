@@ -57,7 +57,7 @@ dated when that version is released.
 - **Comments are placed on the slide.** A comment's position was written to `p:pos` in EMU, the
   unit the schema names, but PowerPoint writes and reads that element in eighths of a point (576
   to the inch — a comment it places 10 pt from the corner is written `x="80" y="80"`). Every
-  comment therefore landed 12 700 times too far from the corner, far outside the slide. The
+  comment therefore landed 1 587.5 times too far from the corner, far outside the slide. The
   position passed to `addComment` and `insertComment` and returned by `getPosition()` is, as it
   always was, in centimetres from the top-left corner of the slide — this is now documented —
   and it is now written in PowerPoint's unit and read back from it. Behaviour change: a comment
@@ -68,8 +68,8 @@ dated when that version is released.
 - **A removed slide leaves its section.** Removing a slide — or leaving it out of a subset save —
   deleted it from `p:sldIdLst` but left its id in the deck's section list (the `p14:sectionLst`
   extension PowerPoint writes), which then named a slide the presentation no longer had. The id
-  is now removed from its section as well. A section whose last slide is removed stays, empty,
-  as it does in PowerPoint. Covered by `SlideDependentsConformanceTest`.
+  is now removed from its section as well. A section whose last slide is removed is kept, with
+  no slides, under its name. Covered by `SlideDependentsConformanceTest`.
 - **A cloned slide's notes belong to the clone.** Cloning a slide with speaker notes copied the
   notes slide with its relationships unchanged, so the copy still pointed back at the source
   slide, had no content-type override, and — when cloned into another presentation — pointed at

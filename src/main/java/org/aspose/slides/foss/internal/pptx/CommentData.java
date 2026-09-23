@@ -24,7 +24,7 @@ public final class CommentData {
      * <p>The schema types {@code p:pos} as {@code a:CT_Point2D}, in EMU, but PowerPoint writes
      * and reads it in eighths of a point, 576 to the inch: a comment it places 10 pt from the
      * corner of the slide is written {@code x="80" y="80"}. Written in EMU, a position is
-     * 12 700 times too large and lands far outside the slide.</p>
+     * 1 587.5 times too large and lands far outside the slide.</p>
      */
     public static final double POSITION_UNITS_PER_CM = 576 / 2.54;
 

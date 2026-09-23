@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.within;
  * <p>The schema types {@code p:cm/p:pos} as a point in EMU, but PowerPoint writes and reads it
  * in its own unit, one eighth of a point (576 to the inch): a comment PowerPoint places at 10 pt
  * from the top-left corner is written {@code <p:pos x="80" y="80"/>}. Positions were written in
- * EMU, 12 700 times too large, which puts every comment far outside the slide.</p>
+ * EMU, 1 587.5 times too large, which puts every comment far outside the slide.</p>
  *
  * <p>A comment's position is given in centimetres from the top-left corner of the slide, which
  * is what the library has always meant by it; only the value written to the file changes.</p>

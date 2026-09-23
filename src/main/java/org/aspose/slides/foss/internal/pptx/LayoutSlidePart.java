@@ -40,7 +40,7 @@ public final class LayoutSlidePart {
             Map.entry("objAndTwoObj", "ObjectAndTwoObject"),
             Map.entry("objOnly", "ObjectOnly"),
             Map.entry("objOverTx", "ObjectOverText"),
-            Map.entry("objTx", "ObjectText"),
+            Map.entry("objTx", "TitleObjectAndCaption"),
             Map.entry("picTx", "PictureAndCaption"),
             Map.entry("secHead", "SectionHeader"),
             Map.entry("tbl", "Table"),

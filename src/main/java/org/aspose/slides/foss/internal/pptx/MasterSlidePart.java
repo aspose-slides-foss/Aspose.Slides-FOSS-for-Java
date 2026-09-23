@@ -5,7 +5,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,6 +22,8 @@ public final class MasterSlidePart {
             "http://schemas.openxmlformats.org/presentationml/2006/main";
     private static final String NS_RELS =
             "http://schemas.openxmlformats.org/package/2006/relationships";
+    private static final String NS_R =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private static final String REL_TYPE_SLIDE_LAYOUT =
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
 
@@ -94,7 +98,8 @@ public final class MasterSlidePart {
     }
 
     /**
-     * Returns the list of layout slide part names referenced by this master's relationships.
+     * Returns the layout slide part names of this master, in the order of its
+     * {@code p:sldLayoutIdLst}.
      *
      * @return list of resolved layout slide part names
      */
@@ -105,12 +110,30 @@ public final class MasterSlidePart {
             return List.of();
         }
         NodeList rels = relsDoc.getElementsByTagNameNS(NS_RELS, "Relationship");
-        List<String> result = new ArrayList<>();
+        Map<String, String> layoutById = new LinkedHashMap<>();
         for (int i = 0; i < rels.getLength(); i++) {
             Element rel = (Element) rels.item(i);
             if (REL_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) {
                 String target = rel.getAttribute("Target");
-                result.add(resolveTarget(target));
+                layoutById.put(rel.getAttribute("Id"), resolveTarget(target));
+            }
+        }
+
+        // The master's layouts are the entries of p:sldLayoutIdLst, in that order. The order
+        // of the .rels file means nothing and PowerPoint writes it in any order, so following
+        // it made getLayoutSlides().get(0) an arbitrary layout on real files. A layout that is
+        // related but not listed is kept, after the listed ones, as before.
+        List<String> result = new ArrayList<>();
+        NodeList ids = root.getElementsByTagNameNS(NS_P, "sldLayoutId");
+        for (int i = 0; i < ids.getLength(); i++) {
+            String layout = layoutById.get(((Element) ids.item(i)).getAttributeNS(NS_R, "id"));
+            if (layout != null && !result.contains(layout)) {
+                result.add(layout);
+            }
+        }
+        for (String layout : layoutById.values()) {
+            if (!result.contains(layout)) {
+                result.add(layout);
             }
         }
         return result;

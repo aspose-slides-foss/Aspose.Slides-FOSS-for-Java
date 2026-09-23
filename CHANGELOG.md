@@ -36,6 +36,18 @@ dated when that version is released.
   takes the slide's number when that name is free, and the lowest free number otherwise. A cloned
   slide is still saved without the source slide's comments. Covered by
   `PartNumberingConformanceTest`.
+- **Layouts are listed in the master's order.** `getLayoutSlides()` and a master's
+  `getLayoutSlides()` followed the order of the master's relationships file, which carries no
+  meaning and which PowerPoint writes in any order, instead of the master's `p:sldLayoutIdLst`.
+  On a PowerPoint deck the documented `addEmptySlide(pres.getLayoutSlides().get(0))` therefore put
+  the new slide on an arbitrary layout — "Content with Caption" on a stock deck — rather than
+  "Title Slide". Layouts are now listed in `p:sldLayoutIdLst` order; a layout that is related
+  but not listed follows the listed ones. Behaviour change: the index of a layout in these
+  collections, and so the layout `get(0)` returns, can differ from earlier versions on files
+  this library did not write. Covered by `LoadedDeckConformanceTest`.
+- **A "Content with Caption" layout reports its type.** `getLayoutType()` returned `CUSTOM` for a
+  layout of type `objTx`; it now returns `TITLE_OBJECT_AND_CAPTION`. Covered by
+  `LoadedDeckConformanceTest`.
 - **Removing the last comment author removes them from the file.** `getCommentAuthors().removeAt`,
   `remove` and `clear` removed the author's comments, but when no author was left the author list
   read from the file was never written back, so `ppt/commentAuthors.xml` still named the author.

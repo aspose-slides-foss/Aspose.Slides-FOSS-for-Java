@@ -10,6 +10,20 @@ A change a caller can observe goes here, under a `### Added`, `### Changed`,
 `### Fixed`, `### Removed` or `### Security` heading, and the section is renamed to the version and
 dated when that version is released.
 
+### Changed
+
+- **Comment positions saved by earlier versions read back far too large.** Earlier versions wrote
+  a comment's `p:pos` in EMU; it is now read in PowerPoint's unit, so a comment saved by an
+  earlier version of this library reads back from `getPosition()` 1587.5 times further from the
+  corner along each axis than it was given. `IComment` has no setter, so the position cannot be
+  corrected through the API. A comment written by PowerPoint now reads back where PowerPoint
+  placed it. See *Comments are placed on the slide* under Fixed.
+- **Layout order, and so a layout's index, follows the master's `p:sldLayoutIdLst`.**
+  `getLayoutSlides()` and a master's `getLayoutSlides()` used to follow the order of the master's
+  relationships file. On a deck this library did not write, an index-based lookup — including
+  `getLayoutSlides().get(0)` — can therefore return a different layout than before. See *Layouts
+  are listed in the master's order* under Fixed.
+
 ### Fixed
 
 - **Speaker notes are wired to a notes master and to their slide.** `addNotesSlide()` wrote the
@@ -26,16 +40,16 @@ dated when that version is released.
   Covered by `NotesMasterConformanceTest`.
 - **Notes and comments are found through the slide's relationships, not by part number.** The
   library paired `notesSlideN.xml` and `commentN.xml` with `slideN.xml` by their numbers. Other
-  producers number these parts independently — a deck whose first slide has no notes commonly
-  keeps the second slide's notes in `notesSlide1.xml` — and on such a deck the library reported
-  one slide's notes or comments as another's, `addNotesSlide()` wrote into another slide's notes,
-  and removing notes or a comment deleted another slide's part and left that slide pointing at a
-  part that was gone, which PowerPoint refuses to open. Saving after cloning a slide whose
-  comments had been loaded from the file could break the file the same way. Each slide's notes,
-  comments and threaded-comment parts are now the ones its relationships name. A new part still
-  takes the slide's number when that name is free, and the lowest free number otherwise. A cloned
-  slide is still saved without the source slide's comments. Covered by
-  `PartNumberingConformanceTest`.
+  producers may number these parts independently of the slides — for example, a deck whose first
+  slide has no notes may keep the second slide's notes in `notesSlide1.xml` — and on such a deck
+  the library reported one slide's notes or comments as another's, `addNotesSlide()` wrote into
+  another slide's notes, and removing notes or a comment deleted another slide's part and left
+  that slide pointing at a part that was gone, which PowerPoint refuses to open. Saving after
+  cloning a slide whose comments had been loaded from the file could break the file the same
+  way. Each slide's notes, comments and threaded-comment parts are now the ones its
+  relationships name. A new part still takes the slide's number when that name is free, and the
+  lowest free number otherwise. A cloned slide is still saved without the source slide's
+  comments. Covered by `PartNumberingConformanceTest`.
 - **Layouts are listed in the master's order.** `getLayoutSlides()` and a master's
   `getLayoutSlides()` followed the order of the master's relationships file, which carries no
   meaning and which PowerPoint writes in any order, instead of the master's `p:sldLayoutIdLst`.
@@ -57,14 +71,14 @@ dated when that version is released.
 - **Comments are placed on the slide.** A comment's position was written to `p:pos` in EMU, the
   unit the schema names, but PowerPoint writes and reads that element in eighths of a point (576
   to the inch — a comment it places 10 pt from the corner is written `x="80" y="80"`). Every
-  comment therefore landed 1 587.5 times too far from the corner, far outside the slide. The
+  comment therefore landed 1587.5 times too far from the corner, far outside the slide. The
   position passed to `addComment` and `insertComment` and returned by `getPosition()` is, as it
   always was, in centimetres from the top-left corner of the slide — this is now documented —
   and it is now written in PowerPoint's unit and read back from it. Behaviour change: a comment
-  saved by an earlier version of this library, which wrote EMU, now reads back 1 587.5 times
+  saved by an earlier version of this library, which wrote EMU, now reads back 1587.5 times
   further along each axis than it was given; a comment written by PowerPoint now reads back
-  where PowerPoint placed it. Replies in the threaded-comment part are unchanged. Covered by
-  `CommentPositionConformanceTest`.
+  where PowerPoint placed it. The position written to the threaded-comment part is unchanged: it
+  is still in EMU. Covered by `CommentPositionConformanceTest`.
 - **A removed slide leaves its section.** Removing a slide — or leaving it out of a subset save —
   deleted it from `p:sldIdLst` but left its id in the deck's section list (the `p14:sectionLst`
   extension PowerPoint writes), which then named a slide the presentation no longer had. The id

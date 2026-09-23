@@ -22,9 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * number they share.
  *
  * <p>Part names carry no meaning in OPC: {@code notesSlide1.xml} is the notes of whichever
- * slide has a relationship to it. Producers number these parts independently of the slides —
- * a deck whose first slide has no notes commonly has its second slide's notes in
- * {@code notesSlide1.xml} — and a library that pairs them by number reads another slide's notes,
+ * slide has a relationship to it. A deck may number its notes slides independently of its
+ * slides — for example, a deck whose first slide has no notes may keep its second slide's notes
+ * in {@code notesSlide1.xml} — and a library that pairs them by number reads another slide's notes,
  * overwrites them, or deletes them and leaves the owning slide with a relationship to a part
  * that is gone, which is a file PowerPoint refuses to open.</p>
  *

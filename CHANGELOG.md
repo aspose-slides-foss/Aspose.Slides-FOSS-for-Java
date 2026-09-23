@@ -42,6 +42,17 @@ dated when that version is released.
   With no authors left, that part is now removed along with its relationship and content-type
   override. Removing one author of several already worked and is unchanged. Covered by
   `PartRemovalConformanceTest`.
+- **Comments are placed on the slide.** A comment's position was written to `p:pos` in EMU, the
+  unit the schema names, but PowerPoint writes and reads that element in eighths of a point (576
+  to the inch — a comment it places 10 pt from the corner is written `x="80" y="80"`). Every
+  comment therefore landed 12 700 times too far from the corner, far outside the slide. The
+  position passed to `addComment` and `insertComment` and returned by `getPosition()` is, as it
+  always was, in centimetres from the top-left corner of the slide — this is now documented —
+  and it is now written in PowerPoint's unit and read back from it. Behaviour change: a comment
+  saved by an earlier version of this library, which wrote EMU, now reads back 1 587.5 times
+  further along each axis than it was given; a comment written by PowerPoint now reads back
+  where PowerPoint placed it. Replies in the threaded-comment part are unchanged. Covered by
+  `CommentPositionConformanceTest`.
 - **A removed slide leaves its section.** Removing a slide — or leaving it out of a subset save —
   deleted it from `p:sldIdLst` but left its id in the deck's section list (the `p14:sectionLst`
   extension PowerPoint writes), which then named a slide the presentation no longer had. The id

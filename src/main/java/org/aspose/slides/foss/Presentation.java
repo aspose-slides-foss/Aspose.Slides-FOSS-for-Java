@@ -11,6 +11,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import org.aspose.slides.foss.internal.pptx.CommentData;
 import org.aspose.slides.foss.internal.pptx.LayoutSlidePart;
 import org.aspose.slides.foss.internal.pptx.MasterSlidePart;
 import org.aspose.slides.foss.internal.pptx.PresentationPart;
@@ -410,13 +411,13 @@ public final class Presentation implements IPresentation {
                 String dtStr = cmEl.getAttribute("dt");
                 LocalDateTime dt = parseDateTime(dtStr);
 
-                // Parse position (stored as EMUs in XML, exposed as centimeters)
+                // Parse position (stored in PowerPoint's comment unit, exposed as centimetres)
                 float x = 0, y = 0;
                 NodeList posNodes = cmEl.getElementsByTagNameNS(NS_P, "pos");
                 if (posNodes.getLength() > 0) {
                     Element posEl = (Element) posNodes.item(0);
-                    x = Integer.parseInt(posEl.getAttribute("x")) / (float) CM_TO_EMU;
-                    y = Integer.parseInt(posEl.getAttribute("y")) / (float) CM_TO_EMU;
+                    x = (float) CommentData.fromPositionUnits(Long.parseLong(posEl.getAttribute("x")));
+                    y = (float) CommentData.fromPositionUnits(Long.parseLong(posEl.getAttribute("y")));
                 }
 
                 // Parse text
@@ -828,7 +829,7 @@ public final class Presentation implements IPresentation {
         );
     }
 
-    /** Centimeters-to-EMU conversion factor for comment positions. */
+    /** Centimetres-to-EMU conversion factor, for positions in the threaded-comment part. */
     private static final int CM_TO_EMU = 360000;
 
     private void saveComments() {
@@ -876,8 +877,9 @@ public final class Presentation implements IPresentation {
                     cmEl.setAttribute("dt", c.getCreatedTime().format(DateTimeFormatter.ISO_DATE_TIME));
                 }
                 Element posEl = doc.createElementNS(NS_P, "p:pos");
-                posEl.setAttribute("x", String.valueOf(Math.round(c.getPosition().getX() * CM_TO_EMU)));
-                posEl.setAttribute("y", String.valueOf(Math.round(c.getPosition().getY() * CM_TO_EMU)));
+                // PowerPoint's unit, not the EMU the schema names: see CommentData.
+                posEl.setAttribute("x", String.valueOf(CommentData.toPositionUnits(c.getPosition().getX())));
+                posEl.setAttribute("y", String.valueOf(CommentData.toPositionUnits(c.getPosition().getY())));
                 cmEl.appendChild(posEl);
                 Element textEl = doc.createElementNS(NS_P, "p:text");
                 textEl.setTextContent(c.getText());

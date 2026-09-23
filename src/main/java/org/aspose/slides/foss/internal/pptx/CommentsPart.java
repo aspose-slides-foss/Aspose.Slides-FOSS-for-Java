@@ -31,9 +31,6 @@ public final class CommentsPart {
             "application/vnd.openxmlformats-officedocument.presentationml.comments+xml";
     private static final String CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types";
 
-    /** EMU conversion factor: 1 cm = 360 000 EMU. */
-    private static final int CM_TO_EMU = 360_000;
-
     private final OpcPackage pkg;
     private final String partName;
     private Document doc;
@@ -160,8 +157,8 @@ public final class CommentsPart {
         }
 
         Element pos = doc.createElementNS(NS_P, "p:pos");
-        pos.setAttribute("x", String.valueOf(Math.round(posX * CM_TO_EMU)));
-        pos.setAttribute("y", String.valueOf(Math.round(posY * CM_TO_EMU)));
+        pos.setAttribute("x", String.valueOf(CommentData.toPositionUnits(posX)));
+        pos.setAttribute("y", String.valueOf(CommentData.toPositionUnits(posY)));
         elem.appendChild(pos);
 
         Element textElem = doc.createElementNS(NS_P, "p:text");
@@ -196,8 +193,8 @@ public final class CommentsPart {
         }
 
         Element pos = doc.createElementNS(NS_P, "p:pos");
-        pos.setAttribute("x", String.valueOf(Math.round(posX * CM_TO_EMU)));
-        pos.setAttribute("y", String.valueOf(Math.round(posY * CM_TO_EMU)));
+        pos.setAttribute("x", String.valueOf(CommentData.toPositionUnits(posX)));
+        pos.setAttribute("y", String.valueOf(CommentData.toPositionUnits(posY)));
         elem.appendChild(pos);
 
         Element textElem = doc.createElementNS(NS_P, "p:text");

@@ -16,7 +16,7 @@ public interface ICommentCollection {
      *
      * @param text        the comment text
      * @param slide       the target slide
-     * @param position    the position on the slide
+     * @param position    the position on the slide, in centimetres from its top-left corner
      * @param createdTime the creation date/time
      * @return the new comment
      */
@@ -28,7 +28,7 @@ public interface ICommentCollection {
      * @param index       the insertion index
      * @param text        the comment text
      * @param slide       the target slide
-     * @param position    the position on the slide
+     * @param position    the position on the slide, in centimetres from its top-left corner
      * @param createdTime the creation date/time
      * @return the new comment
      */

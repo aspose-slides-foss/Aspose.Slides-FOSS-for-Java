@@ -11,14 +11,22 @@ import java.util.OptionalInt;
  * Raw data for a comment parsed from XML.
  *
  * <p>Wraps a {@code <p:cm>} DOM element and provides typed access to its attributes
- * and child elements. Positions are stored in centimetres (converted from EMU).</p>
+ * and child elements. Positions are exposed in centimetres and stored in the unit
+ * PowerPoint uses for {@code p:pos}; see {@link #toPositionUnits}.</p>
  */
 public final class CommentData {
 
     private static final String NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
 
-    /** EMU conversion factor: 1 cm = 360 000 EMU. */
-    private static final int CM_TO_EMU = 360_000;
+    /**
+     * PowerPoint's unit for a comment's {@code p:pos}, per centimetre.
+     *
+     * <p>The schema types {@code p:pos} as {@code a:CT_Point2D}, in EMU, but PowerPoint writes
+     * and reads it in eighths of a point, 576 to the inch: a comment it places 10 pt from the
+     * corner of the slide is written {@code x="80" y="80"}. Written in EMU, a position is
+     * 12 700 times too large and lands far outside the slide.</p>
+     */
+    public static final double POSITION_UNITS_PER_CM = 576 / 2.54;
 
     private final Element elem;
 
@@ -142,7 +150,7 @@ public final class CommentData {
         if (pos != null) {
             String val = pos.getAttribute("x");
             if (!val.isEmpty()) {
-                return Integer.parseInt(val) / (double) CM_TO_EMU;
+                return fromPositionUnits(Long.parseLong(val));
             }
         }
         return 0.0;
@@ -155,7 +163,7 @@ public final class CommentData {
      */
     public void setPosX(double value) {
         Element pos = ensurePos();
-        pos.setAttribute("x", String.valueOf(Math.round(value * CM_TO_EMU)));
+        pos.setAttribute("x", String.valueOf(toPositionUnits(value)));
     }
 
     /**
@@ -168,7 +176,7 @@ public final class CommentData {
         if (pos != null) {
             String val = pos.getAttribute("y");
             if (!val.isEmpty()) {
-                return Integer.parseInt(val) / (double) CM_TO_EMU;
+                return fromPositionUnits(Long.parseLong(val));
             }
         }
         return 0.0;
@@ -181,7 +189,27 @@ public final class CommentData {
      */
     public void setPosY(double value) {
         Element pos = ensurePos();
-        pos.setAttribute("y", String.valueOf(Math.round(value * CM_TO_EMU)));
+        pos.setAttribute("y", String.valueOf(toPositionUnits(value)));
+    }
+
+    /**
+     * Converts a comment coordinate from centimetres to the value written in {@code p:pos}.
+     *
+     * @param cm the coordinate in centimetres from the top-left corner of the slide
+     * @return the coordinate in PowerPoint's comment-position unit
+     */
+    public static long toPositionUnits(double cm) {
+        return Math.round(cm * POSITION_UNITS_PER_CM);
+    }
+
+    /**
+     * Converts a {@code p:pos} coordinate to centimetres.
+     *
+     * @param units the coordinate as written in {@code p:pos}
+     * @return the coordinate in centimetres from the top-left corner of the slide
+     */
+    public static double fromPositionUnits(long units) {
+        return units / POSITION_UNITS_PER_CM;
     }
 
     // ---- Private helpers ----

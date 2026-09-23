@@ -22,7 +22,11 @@ public interface IComment {
     /** Returns the slide this comment belongs to. */
     ISlide getSlide();
 
-    /** Returns the position of the comment. */
+    /**
+     * Returns the position of the comment.
+     *
+     * @return the position, in centimetres from the top-left corner of the slide
+     */
     PointF getPosition();
 
     /** Returns the creation date/time. */
